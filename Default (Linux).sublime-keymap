@@ -1,0 +1,13 @@
+[
+    {
+        "keys": ["ctrl+alt+m"],
+        "command": "markdown_preview_overlay_toggle",
+        "context": [
+            {
+                "key": "selector",
+                "operator": "equal",
+                "operand": "text.html.markdown"
+            }
+        ]
+    }
+]

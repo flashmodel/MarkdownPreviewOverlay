@@ -1,0 +1,18 @@
+[
+    {
+        "caption": "Markdown Preview Overlay: Toggle",
+        "command": "markdown_preview_overlay_toggle"
+    },
+    {
+        "caption": "Markdown Preview Overlay: Show",
+        "command": "markdown_preview_overlay_show"
+    },
+    {
+        "caption": "Markdown Preview Overlay: Hide",
+        "command": "markdown_preview_overlay_hide"
+    },
+    {
+        "caption": "Markdown Preview Overlay: Refresh",
+        "command": "markdown_preview_overlay_refresh"
+    }
+]
