@@ -11,6 +11,7 @@ import sublime_plugin
 
 
 PHANTOM_KEY = "markdown_preview_overlay"
+ANNOTATION_KEY = "markdown_preview_overlay.control"
 MODE_SETTING = "markdown_preview_overlay.preview_mode"
 STATUS_KEY = "markdown_preview_overlay"
 
@@ -18,39 +19,100 @@ MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdown", ".mkd"}
 
 OVERLAY_CSS = """
 .markdown-preview-overlay-toolbar {
-    margin: 0 0 0.55rem 0;
-    padding: 0.35rem 0;
+    margin: 0 0 12px;
+    border-bottom: 1px solid color(var(--background) blend(var(--foreground) 88%));
 }
-.markdown-preview-overlay-toolbar a {
-    padding: 0.3rem 0.7rem;
-    border-radius: 0.25rem;
+.markdown-preview-overlay-toolbar-row {
+    display: block;
+    padding: 8px;
+    line-height: 32px;
+}
+a.markdown-preview-overlay-action {
+    display: inline-block;
+    vertical-align: middle;
+    position: relative;
+    top: -2px;
+    color: var(--accent);
+    background-color: color(var(--background) blend(var(--accent) 90%));
+    border: 1px solid color(var(--background) blend(var(--accent) 72%));
+    font-size: 0.85em;
+    font-family: var(--font-mono);
     text-decoration: none;
-    {{'string'|css}}
-    {{'background'|css('background-color')|brightness(1.15)}}
+    padding: 4px 8px;
+    border-radius: 4px;
+    line-height: 1.2;
+    cursor: pointer;
 }
-.markdown-preview-overlay-toolbar a.secondary {
-    margin-left: 0.4rem;
+a.markdown-preview-overlay-source {
+    margin-left: 16px;
+    font-weight: bold;
+}
+a.markdown-preview-overlay-refresh {
+    margin-left: 48px;
+}
+a.markdown-preview-overlay-preview-icon {
+    display: inline-block;
+    padding: 0 0.15rem 0 0.1rem;
+    margin-right: 0.1rem;
+    font-size: 1.35rem;
+    position: relative;
+    top: -0.2rem;
+    text-decoration: none;
+    {{'background'|css('background-color')}}
+    {{'variable.parameter.chatview'|css('color')}}
 }
 .markdown-preview-overlay-document {
     padding: 0.2rem 0.7rem 1rem 0.7rem;
+    {{'background'|css('background-color')}}
 }
 """
 
+ANNOTATION_HTML = """
+<body id="markdown-preview-overlay-control">
+    <style>
+        a.preview-link {
+            display: inline-block;
+            color: __PREVIEW_COLOR__;
+            line-height: 1.4rem;
+            text-decoration: none;
+        }
+        span.preview-icon {
+            display: inline-block;
+            margin-left: -0.1rem;
+            margin-right: 0.3rem;
+            font-size: 1.2rem;
+            line-height: 1;
+            vertical-align: middle;
+        }
+    </style>
+    <a class="preview-link" href="overlay:preview"><span class="preview-icon">▣</span>Preview</a>
+</body>
+"""
+
+ANNOTATION_RESERVED_WIDTH = 150.0
+
 
 def _is_markdown(view):
-    """Return whether a view should receive the overlay controls."""
+    """Return whether a file-backed Markdown view should receive controls."""
 
     if (
         view is None
         or not view.is_valid()
+        or view.is_scratch()
         or view.settings().get("is_widget", False)
     ):
+        return False
+
+    # Keep transient views such as Codeform chat panes out of the default
+    # experience. A buffer must be associated with a real file before this
+    # package exposes preview controls.
+    file_name = view.file_name()
+    if not file_name:
         return False
 
     if view.match_selector(0, "text.html.markdown"):
         return True
 
-    file_name = view.file_name() or ""
     return os.path.splitext(file_name)[1].lower() in MARKDOWN_EXTENSIONS
 
 
@@ -70,8 +132,11 @@ class PreviewState(object):
         self.original_selections = []
         self.original_viewport = (0.0, 0.0)
         self.original_read_only = False
+        self.original_gutter = True
         self.rendered_change_count = view.change_count()
         self.refresh_generation = 0
+        self.control_generation = 0
+        self.edit_control_mode = None
         self.refresh_lock = threading.Lock()
 
     def render(self):
@@ -80,30 +145,64 @@ class PreviewState(object):
         if not self.view.is_valid():
             return
 
+        self.view.erase_regions(ANNOTATION_KEY)
+
         if self.previewing:
             primary_action = "edit"
-            primary_label = "Edit source"
+            primary_label = "source"
+            primary_title = "Edit source"
         else:
             primary_action = "preview"
-            primary_label = "Preview"
+            # The edit-mode phantom is only used when the first line is too
+            # long for the right-aligned annotation. Keep this fallback
+            # compact so it displaces as little source text as possible.
+            primary_label = "▣"
+            primary_title = "Preview Markdown"
 
-        toolbar = (
-            '<div class="markdown-preview-overlay-toolbar">'
-            '<a href="overlay:{0}">{1}</a>'.format(
-                primary_action, primary_label
-            )
-        )
         if self.previewing:
-            toolbar += (
-                '<a class="secondary" href="overlay:refresh">Refresh</a>'
+            toolbar = (
+                '<div class="markdown-preview-overlay-toolbar">'
+                + '<div class="markdown-preview-overlay-toolbar-row">'
+                + '<a class="markdown-preview-overlay-action '
+                'markdown-preview-overlay-source" '
+                'href="overlay:{0}" title="{1}">{2}</a>'.format(
+                    primary_action, primary_title, primary_label
+                )
+                + '<a class="markdown-preview-overlay-action '
+                'markdown-preview-overlay-refresh" '
+                'href="overlay:refresh" title="Refresh preview">refresh</a>'
+                + "</div>"
+                + "</div>"
             )
-        toolbar += "</div>"
+            toolbar_layout = sublime.LAYOUT_BLOCK
+        else:
+            toolbar = (
+                '<a class="markdown-preview-overlay-preview-icon" '
+                'href="overlay:{0}" title="{1}">{2}</a>'.format(
+                    primary_action, primary_title, primary_label
+                )
+            )
+            toolbar_layout = sublime.LAYOUT_INLINE
+
+            if self._should_use_annotation():
+                self.phantom_set.update([])
+                self._render_annotation()
+                self.edit_control_mode = "annotation"
+                self.rendered_change_count = self.view.change_count()
+                return
+
+            self.edit_control_mode = "inline"
+
+        # In preview mode, anchor at EOF. The source fold is [0, size), so
+        # this real boundary point stays outside the fold and lays the
+        # phantoms out below the folded document.
+        anchor = self.view.size() if self.previewing else 0
 
         phantoms = [
             mdpopups.Phantom(
-                sublime.Region(0),
+                sublime.Region(anchor),
                 toolbar,
-                sublime.LAYOUT_BLOCK,
+                toolbar_layout,
                 md=False,
                 css=OVERLAY_CSS,
                 on_navigate=self.on_navigate,
@@ -117,10 +216,7 @@ class PreviewState(object):
             )
             phantoms.append(
                 mdpopups.Phantom(
-                    # Keep both phantoms on the same real, unfolded anchor.
-                    # A point on the fold boundary is less reliable during
-                    # layout updates and external file reloads.
-                    sublime.Region(0),
+                    sublime.Region(anchor),
                     markdown,
                     sublime.LAYOUT_BLOCK,
                     md=True,
@@ -140,6 +236,7 @@ class PreviewState(object):
             return
 
         self.original_read_only = self.view.is_read_only()
+        self.original_gutter = self.view.settings().get("gutter", True)
         self.original_selections = _copy_regions(self.view.sel())
         self.original_viewport = self.view.viewport_position()
         self.original_folds = _copy_regions(self.view.folded_regions())
@@ -150,7 +247,7 @@ class PreviewState(object):
             self.view.unfold(region)
 
         self.fold_region = sublime.Region(
-            self._source_fold_start(), self.view.size()
+            0, self.view.size()
         )
         if not self.fold_region.empty():
             self.view.fold(self.fold_region)
@@ -158,6 +255,7 @@ class PreviewState(object):
         self.previewing = True
         self.view.settings().set(MODE_SETTING, True)
         self.view.set_status(STATUS_KEY, "Markdown Preview Overlay")
+        self.view.settings().set("gutter", False)
         self.view.set_read_only(True)
         self.render()
         self.view.set_viewport_position((0.0, 0.0), False)
@@ -182,6 +280,7 @@ class PreviewState(object):
         self.fold_region = None
         self.view.settings().erase(MODE_SETTING)
         self.view.erase_status(STATUS_KEY)
+        self.view.settings().set("gutter", self.original_gutter)
         self.view.set_read_only(self.original_read_only)
         self.render()
 
@@ -209,7 +308,7 @@ class PreviewState(object):
             self.view.unfold(self.fold_region)
 
         self.fold_region = sublime.Region(
-            self._source_fold_start(), self.view.size()
+            0, self.view.size()
         )
         if not self.fold_region.empty():
             self.view.fold(self.fold_region)
@@ -237,11 +336,29 @@ class PreviewState(object):
 
         sublime.set_timeout(refresh_if_current, 250)
 
+    def schedule_control_render(self):
+        """Debounce edit-mode placement after the first line changes."""
+
+        with self.refresh_lock:
+            self.control_generation += 1
+            generation = self.control_generation
+
+        def render_if_current():
+            with self.refresh_lock:
+                if generation != self.control_generation:
+                    return
+            if not self.previewing and self.view.is_valid():
+                self.update_control_placement()
+
+        sublime.set_timeout(render_if_current, 100)
+
     def dispose(self, restore=True):
         """Remove all UI owned by this state."""
 
         if restore and self.view.is_valid() and self.previewing:
             self.hide()
+        if self.view.is_valid():
+            self.view.erase_regions(ANNOTATION_KEY)
         self.phantom_set.update([])
 
     def on_navigate(self, href):
@@ -256,13 +373,60 @@ class PreviewState(object):
         else:
             _open_link(self.view, href)
 
-    def _source_fold_start(self):
-        """Keep the first line available as a stable phantom anchor."""
+    def update_control_placement(self):
+        """Move the edit control only when its desired mode has changed."""
 
-        if not self.view.size():
-            return 0
-        return self.view.full_line(0).end()
+        if self.previewing or not self.view.is_valid():
+            return
+        desired = "annotation" if self._should_use_annotation() else "inline"
+        if desired != self.edit_control_mode:
+            self.render()
 
+    def _render_annotation(self):
+        """Draw a Preview action at the right edge of the first line."""
+
+        preview_color = (
+            self.view.style_for_scope(
+                "variable.parameter.chatview"
+            ).get("foreground")
+            or self.view.style().get("foreground", "#ffffff")
+        )
+        annotation_html = ANNOTATION_HTML.replace(
+            "__PREVIEW_COLOR__", preview_color
+        )
+
+        self.view.add_regions(
+            ANNOTATION_KEY,
+            [sublime.Region(0)],
+            annotations=[annotation_html],
+            annotation_color="#aaa0",
+            on_navigate=self.on_navigate
+        )
+
+    def _should_use_annotation(self):
+        """Use annotation unless the first line competes for its space."""
+
+        first_line = self.view.line(0)
+        first_line_text = self.view.substr(first_line)
+
+        # A blank first line is an ideal annotation row: the button stays at
+        # the top-right without shifting any Markdown content.
+        if not first_line_text.strip():
+            return True
+
+        viewport_width = self.view.viewport_extent()[0]
+        if viewport_width <= 0:
+            return False
+
+        start_xy = self.view.text_to_layout(first_line.begin())
+        end_xy = self.view.text_to_layout(first_line.end())
+
+        # A visually wrapped first line already consumes multiple rows and is
+        # not a good host for a right-edge annotation.
+        if end_xy[1] > start_xy[1]:
+            return False
+
+        return end_xy[0] <= viewport_width - ANNOTATION_RESERVED_WIDTH
 
 _states = {}
 
@@ -360,8 +524,16 @@ class MarkdownPreviewOverlayListener(sublime_plugin.EventListener):
 
     def on_modified_async(self, view):
         state = _states.get(view.id())
-        if state is not None and state.previewing:
-            state.schedule_refresh()
+        if state is not None:
+            if state.previewing:
+                state.schedule_refresh()
+            else:
+                state.schedule_control_render()
+
+    def on_selection_modified_async(self, view):
+        state = _states.get(view.id())
+        if state is not None and not state.previewing:
+            sublime.set_timeout(state.update_control_placement)
 
     def on_close(self, view):
         state = _states.pop(view.id(), None)
