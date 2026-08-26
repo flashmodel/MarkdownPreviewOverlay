@@ -19,16 +19,18 @@ MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdown", ".mkd"}
 
 OVERLAY_CSS = """
 .markdown-preview-overlay-toolbar {
-    background-color: color(var(--background) blend(var(--foreground) 95%));
+    background-color: color(var(--cyanish) alpha(0.08));
+    border: 1px solid color(var(--cyanish) alpha(0.25));
+    border-left: 4px solid var(--cyanish);
     border-radius: 4px;
     padding: 0.5rem 0.8rem;
-    margin: 0.5rem 0;
+    margin: 0.5rem 0 1rem;
 }
 a.markdown-preview-overlay-source {
     display: inline-block;
     font-weight: bold;
     cursor: pointer;
-    color: var(--accent);
+    color: var(--cyanish);
     text-decoration: none;
 }
 span.markdown-preview-overlay-arrow {
@@ -47,8 +49,8 @@ a.markdown-preview-overlay-preview-icon {
     position: relative;
     top: -0.2rem;
     text-decoration: none;
+    color: var(--cyanish);
     {{'background'|css('background-color')}}
-    {{'variable.parameter.chatview'|css('color')}}
 }
 .markdown-preview-overlay-document {
     padding: 0.8rem 1.4rem 3rem 1.4rem;
@@ -177,7 +179,8 @@ ANNOTATION_HTML = """
     <style>
         a.preview-link {
             display: inline-block;
-            color: __PREVIEW_COLOR__;
+            color: var(--cyanish);
+            font-weight: bold;
             line-height: 1.4rem;
             text-decoration: none;
         }
@@ -486,20 +489,10 @@ class PreviewState(object):
     def _render_annotation(self):
         """Draw a Preview action at the right edge of the first line."""
 
-        preview_color = (
-            self.view.style_for_scope(
-                "variable.parameter.chatview"
-            ).get("foreground")
-            or self.view.style().get("foreground", "#ffffff")
-        )
-        annotation_html = ANNOTATION_HTML.replace(
-            "__PREVIEW_COLOR__", preview_color
-        )
-
         self.view.add_regions(
             ANNOTATION_KEY,
             [sublime.Region(0)],
-            annotations=[annotation_html],
+            annotations=[ANNOTATION_HTML],
             annotation_color="#aaa0",
             on_navigate=self.on_navigate
         )
