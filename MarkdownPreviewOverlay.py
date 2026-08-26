@@ -19,36 +19,25 @@ MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdown", ".mkd"}
 
 OVERLAY_CSS = """
 .markdown-preview-overlay-toolbar {
-    margin: 0 0 12px;
-    border-bottom: 1px solid color(var(--background) blend(var(--foreground) 88%));
-}
-.markdown-preview-overlay-toolbar-row {
-    display: block;
-    padding: 8px;
-    line-height: 32px;
-}
-a.markdown-preview-overlay-action {
-    display: inline-block;
-    vertical-align: middle;
-    position: relative;
-    top: -2px;
-    color: var(--accent);
-    background-color: color(var(--background) blend(var(--accent) 90%));
-    border: 1px solid color(var(--background) blend(var(--accent) 72%));
-    font-size: 0.85em;
-    font-family: var(--font-mono);
-    text-decoration: none;
-    padding: 4px 8px;
+    background-color: color(var(--background) blend(var(--foreground) 95%));
     border-radius: 4px;
-    line-height: 1.2;
-    cursor: pointer;
+    padding: 0.5rem 0.8rem;
+    margin: 0.5rem 0;
 }
 a.markdown-preview-overlay-source {
-    margin-left: 16px;
+    display: inline-block;
     font-weight: bold;
+    cursor: pointer;
+    color: var(--accent);
+    text-decoration: none;
 }
-a.markdown-preview-overlay-refresh {
-    margin-left: 48px;
+span.markdown-preview-overlay-arrow {
+    display: inline-block;
+    margin-left: 0.2rem;
+    margin-right: 1.5rem;
+}
+span.markdown-preview-overlay-label {
+    display: inline-block;
 }
 a.markdown-preview-overlay-preview-icon {
     display: inline-block;
@@ -149,7 +138,6 @@ class PreviewState(object):
 
         if self.previewing:
             primary_action = "edit"
-            primary_label = "source"
             primary_title = "Edit source"
         else:
             primary_action = "preview"
@@ -162,17 +150,14 @@ class PreviewState(object):
         if self.previewing:
             toolbar = (
                 '<div class="markdown-preview-overlay-toolbar">'
-                + '<div class="markdown-preview-overlay-toolbar-row">'
-                + '<a class="markdown-preview-overlay-action '
-                'markdown-preview-overlay-source" '
-                'href="overlay:{0}" title="{1}">{2}</a>'.format(
-                    primary_action, primary_title, primary_label
+                '<a class="markdown-preview-overlay-source" '
+                'href="overlay:{0}" title="{1}">'
+                '<span class="markdown-preview-overlay-arrow">◀</span>'
+                '<span class="markdown-preview-overlay-label">✏️Edit source</span>'
+                '</a>'
+                '</div>'.format(
+                    primary_action, primary_title
                 )
-                + '<a class="markdown-preview-overlay-action '
-                'markdown-preview-overlay-refresh" '
-                'href="overlay:refresh" title="Refresh preview">refresh</a>'
-                + "</div>"
-                + "</div>"
             )
             toolbar_layout = sublime.LAYOUT_BLOCK
         else:
