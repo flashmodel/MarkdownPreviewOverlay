@@ -4,11 +4,11 @@
         "command": "markdown_preview_overlay_toggle"
     },
     {
-        "caption": "Markdown Preview Overlay: Show",
+        "caption": "Markdown Preview Overlay: Preview Mode",
         "command": "markdown_preview_overlay_show"
     },
     {
-        "caption": "Markdown Preview Overlay: Hide",
+        "caption": "Markdown Preview Overlay: Edit Mode",
         "command": "markdown_preview_overlay_hide"
     },
     {

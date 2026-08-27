@@ -9,20 +9,61 @@ The package does not bundle a separate Markdown parser.
 
 ## Usage
 
-Every Markdown view gets a **Preview** button at the beginning of the file.
-Click it, run **Markdown Preview Overlay: Toggle** from the Command Palette, or
-use the platform shortcut:
+MarkdownPreviewOverlay provides seamless ways to enter, navigate, and exit preview mode without leaving your active editor view.
 
-- macOS: <kbd>Command</kbd>+<kbd>Option</kbd>+<kbd>M</kbd>
-- Windows/Linux: <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>M</kbd>
+### 1. Interactive UI Buttons
 
-Preview mode is read-only. Use **Edit source** to leave it, or **Refresh** to
-render the current buffer again. Leaving preview restores the prior selection,
-viewport position, read-only state, and folds.
+The package injects lightweight, non-intrusive interactive controls directly into the buffer:
 
-The first source line remains visible in preview mode. This provides a stable
-buffer anchor for the phantom without inserting a marker or modifying the undo
-history.
+- Entering Preview **(Edit Mode)**:
+  - Every file-backed Markdown document displays a **`▣ Preview`** button at the top of the file (as a right-aligned annotation badge, or a compact inline `▣` icon if the line is long).
+  - Clicking this button immediately folds the source text and activates the rendered preview overlay.
+- Leaving Preview **(Preview Mode)**:
+  - While previewing, a top toolbar banner displays **`◀ ✏️Edit source`**.
+  - Clicking this button exits preview mode and returns to your raw Markdown source text.
+  - Your previous cursor selection, scroll position, original read-only status, and manual code folds are fully restored.
+
+### 2. Command Palette
+
+Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for `Markdown Preview Overlay`:
+
+| Command | Description |
+| :--- | :--- |
+| **`Markdown Preview Overlay: Toggle`** | Toggles seamlessly between Preview Mode and Edit Mode. |
+| **`Markdown Preview Overlay: Preview Mode`** | Enters the rendered preview mode for the active Markdown document. |
+| **`Markdown Preview Overlay: Edit Mode`** | Exits preview mode and returns to editing the source buffer. |
+| **`Markdown Preview Overlay: Refresh`** | Forces a re-render of the preview layout (useful after resizing the window). |
+
+### 3. Optional Key Bindings
+
+To avoid shortcut collisions with other packages, default key bindings are provided as `.example` templates. To enable keyboard shortcuts, copy the bindings from the `.sublime-keymap.example` files into your User keymap (`Preferences -> Key Bindings`):
+
+- **macOS** (`Default (OSX).sublime-keymap.example`):
+  ```json
+  [
+      {
+          "keys": ["super+alt+m"],
+          "command": "markdown_preview_overlay_toggle",
+          "context": [{ "key": "selector", "operator": "equal", "operand": "text.html.markdown" }]
+      }
+  ]
+  ```
+- **Windows / Linux** (`Default (Windows/Linux).sublime-keymap.example`):
+  ```json
+  [
+      {
+          "keys": ["ctrl+alt+m"],
+          "command": "markdown_preview_overlay_toggle",
+          "context": [{ "key": "selector", "operator": "equal", "operand": "text.html.markdown" }]
+      }
+  ]
+  ```
+
+### Behavior & Document Lifecycle
+
+- **Read-only Safety**: Preview mode makes the buffer temporarily read-only to prevent accidental edits while viewing formatted text.
+- **Buffer Integrity**: Source folding uses standard Sublime Text region folding without modifying the buffer text or polluting the undo history.
+- **Auto-Refresh**: If the document is modified or saved, the preview updates automatically with debounced re-rendering.
 
 ## Development installation
 
