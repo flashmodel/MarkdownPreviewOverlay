@@ -4,6 +4,11 @@
     // Set to false if you prefer a clean editing buffer and use the Command Palette or shortcuts.
     "show_preview_button": true,
 
+    // Whether to hide line numbers and the gutter in preview mode.
+    // When true (default), line numbers and gutter are hidden for a clean reading experience,
+    // and automatically restored when returning to edit mode.
+    "hide_line_numbers": true,
+
     // Maximum character width for Markdown tables rendered in miniHTML.
     // When null (default), the width dynamically adapts to the editor viewport width.
     "table_max_width": null

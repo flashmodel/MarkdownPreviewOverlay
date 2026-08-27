@@ -78,12 +78,23 @@ class PreviewState(object):
         self.original_viewport = (0.0, 0.0)
         self.original_read_only = False
         self.original_gutter = True
+        self.original_line_numbers = True
         self.rendered_change_count = view.change_count()
         self.refresh_generation = 0
         self.control_generation = 0
         self.edit_control_mode = None
         self.refresh_lock = threading.Lock()
 
+
+    def _should_hide_line_numbers(self):
+        try:
+            settings = sublime.load_settings(SETTINGS_NAME)
+            value = settings.get("hide_line_numbers")
+            if value is None:
+                return True
+            return bool(value)
+        except Exception:
+            return True
 
     def _should_show_button(self):
         try:
@@ -223,6 +234,7 @@ class PreviewState(object):
 
         self.original_read_only = self.view.is_read_only()
         self.original_gutter = self.view.settings().get("gutter", True)
+        self.original_line_numbers = self.view.settings().get("line_numbers", True)
         self.original_selections = _copy_regions(self.view.sel())
         self.original_viewport = self.view.viewport_position()
         self.original_folds = _copy_regions(self.view.folded_regions())
@@ -241,7 +253,9 @@ class PreviewState(object):
         self.previewing = True
         self.view.settings().set(MODE_SETTING, True)
         self.view.set_status(STATUS_KEY, "Markdown Preview Overlay")
-        self.view.settings().set("gutter", False)
+        if self._should_hide_line_numbers():
+            self.view.settings().set("line_numbers", False)
+            self.view.settings().set("gutter", False)
         self.view.set_read_only(True)
         self.render()
         self.view.set_viewport_position((0.0, 0.0), False)
@@ -267,6 +281,7 @@ class PreviewState(object):
         self.view.settings().erase(MODE_SETTING)
         self.view.erase_status(STATUS_KEY)
         self.view.settings().set("gutter", self.original_gutter)
+        self.view.settings().set("line_numbers", self.original_line_numbers)
         self.view.set_read_only(self.original_read_only)
         self.render()
 
@@ -544,6 +559,13 @@ def _on_settings_change():
                 state = _state_for(view)
                 if not state.previewing:
                     state.render()
+                else:
+                    if state._should_hide_line_numbers():
+                        view.settings().set("line_numbers", False)
+                        view.settings().set("gutter", False)
+                    else:
+                        view.settings().set("line_numbers", state.original_line_numbers)
+                        view.settings().set("gutter", state.original_gutter)
 
 
 def plugin_loaded():

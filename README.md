@@ -72,6 +72,8 @@ To avoid shortcut collisions with other packages, default key bindings are provi
 Settings can be customized in `MarkdownPreviewOverlay.sublime-settings`:
 
 - `show_preview_button` (default: `true`): Controls whether the interactive `▣ Preview` button or badge is displayed at the top of the buffer in edit mode. Set to `false` for a distraction-free editing buffer when using the Command Palette or keyboard shortcuts.
+- `hide_line_numbers` (default: `true`): Automatically hides line numbers and the gutter in preview mode for a distraction-free reading experience, and restores them upon returning to edit mode.
+- `table_max_width` (default: `null`): Sets the maximum character width for tables rendered in miniHTML. When set to `null`, it dynamically fits within the viewport width.
 
 ## Development installation
 
