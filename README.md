@@ -7,21 +7,21 @@ renders the document as a themed minihtml phantom in the same view.
 Rendering is delegated directly to the `mdpopups` Package Control dependency.
 The package does not bundle a separate Markdown parser.
 
+This extension is built on concept discussed in the forum topic: [Provide markdown preview mode using folded source and phantom](https://forum.sublimetext.com/t/provide-markdown-preview-mode-using-folded-source-and-phantom/79042). Join the discussion and share your thoughts or feedback in that thread!
+
+
 ## Usage
 
 MarkdownPreviewOverlay provides seamless ways to enter, navigate, and exit preview mode without leaving your active editor view.
 
-### 1. Interactive UI Buttons
+### 1. Interactive Phantom Buttons
 
 The package injects lightweight, non-intrusive interactive controls directly into the buffer:
 
 - Entering Preview **(Edit Mode)**:
-  - Every file-backed Markdown document displays a **`▣ Preview`** button at the top of the file (as a right-aligned annotation badge, or a compact inline `▣` icon if the line is long).
-  - Clicking this button immediately folds the source text and activates the rendered preview overlay.
+  Click the **`▣ Preview`** button at the top of the file (displayed as a right-aligned annotation badge, or a compact inline `▣` icon if the line is long) to fold the source text and enter the preview overlay.
 - Leaving Preview **(Preview Mode)**:
-  - While previewing, a top toolbar banner displays **`◀ ✏️Edit source`**.
-  - Clicking this button exits preview mode and returns to your raw Markdown source text.
-  - Your previous cursor selection, scroll position, original read-only status, and manual code folds are fully restored.
+  Click the **`✏️Edit source`** button in the top toolbar to exit preview mode. Your previous cursor selection, scroll position, original read-only status, and manual code folds are fully restored.
 
 ### 2. Command Palette
 
