@@ -31,6 +31,8 @@ PHANTOM_KEY = "markdown_preview_overlay"
 ANNOTATION_KEY = "markdown_preview_overlay.control"
 MODE_SETTING = "markdown_preview_overlay.preview_mode"
 STATUS_KEY = "markdown_preview_overlay"
+SETTINGS_NAME = "MarkdownPreviewOverlay.sublime-settings"
+SETTINGS_KEY = "markdown_preview_overlay.settings"
 
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdown", ".mkd"}
 
@@ -83,9 +85,19 @@ class PreviewState(object):
         self.refresh_lock = threading.Lock()
 
 
+    def _should_show_button(self):
+        try:
+            settings = sublime.load_settings(SETTINGS_NAME)
+            value = settings.get("show_preview_button")
+            if value is None:
+                value = settings.get("show_button", True)
+            return bool(value)
+        except Exception:
+            return True
+
     def _get_table_max_width(self):
         try:
-            settings = sublime.load_settings("MarkdownPreviewOverlay.sublime-settings")
+            settings = sublime.load_settings(SETTINGS_NAME)
             value = settings.get("table_max_width")
             if isinstance(value, int) and not isinstance(value, bool) and value > 0:
                 return value
@@ -114,6 +126,13 @@ class PreviewState(object):
             return
 
         self.view.erase_regions(ANNOTATION_KEY)
+
+        if not self.previewing:
+            if not self._should_show_button():
+                self.phantom_set.update([])
+                self.edit_control_mode = None
+                self.rendered_change_count = self.view.change_count()
+                return
 
         if self.previewing:
             primary_action = "edit"
@@ -345,6 +364,10 @@ class PreviewState(object):
 
         if self.previewing or not self.view.is_valid():
             return
+        if not self._should_show_button():
+            if self.edit_control_mode is not None:
+                self.render()
+            return
         desired = "annotation" if self._should_use_annotation() else "inline"
         if desired != self.edit_control_mode:
             self.render()
@@ -514,7 +537,19 @@ class MarkdownPreviewOverlayListener(sublime_plugin.EventListener):
         sublime.set_timeout(update)
 
 
+def _on_settings_change():
+    for window in sublime.windows():
+        for view in window.views():
+            if _is_markdown(view):
+                state = _state_for(view)
+                if not state.previewing:
+                    state.render()
+
+
 def plugin_loaded():
+    settings = sublime.load_settings(SETTINGS_NAME)
+    settings.add_on_change(SETTINGS_KEY, _on_settings_change)
+
     for window in sublime.windows():
         for view in window.views():
             if _is_markdown(view):
@@ -522,6 +557,9 @@ def plugin_loaded():
 
 
 def plugin_unloaded():
+    settings = sublime.load_settings(SETTINGS_NAME)
+    settings.clear_on_change(SETTINGS_KEY)
+
     for state in list(_states.values()):
         state.dispose()
     _states.clear()

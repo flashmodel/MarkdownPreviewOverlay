@@ -16,7 +16,7 @@ MarkdownPreviewOverlay provides seamless ways to enter, navigate, and exit previ
 
 ### 1. Interactive Phantom Buttons
 
-The package injects lightweight, non-intrusive interactive controls directly into the buffer:
+The package injects lightweight, non-intrusive interactive controls directly into the buffer (enabled by default, can be hidden via `"show_preview_button": false` in settings):
 
 - Entering Preview **(Edit Mode)**:
   Click the **`▣ Preview`** button at the top of the file (displayed as a right-aligned annotation badge, or a compact inline `▣` icon if the line is long) to fold the source text and enter the preview overlay.
@@ -64,6 +64,12 @@ To avoid shortcut collisions with other packages, default key bindings are provi
 - **Read-only Safety**: Preview mode makes the buffer temporarily read-only to prevent accidental edits while viewing formatted text.
 - **Buffer Integrity**: Source folding uses standard Sublime Text region folding without modifying the buffer text or polluting the undo history.
 - **Auto-Refresh**: If the document is modified or saved, the preview updates automatically with debounced re-rendering.
+
+## Configuration
+
+Settings can be customized in `MarkdownPreviewOverlay.sublime-settings`:
+
+- `show_preview_button` (default: `true`): Controls whether the interactive `▣ Preview` button or badge is displayed at the top of the buffer in edit mode. Set to `false` for a distraction-free editing buffer when using the Command Palette or keyboard shortcuts.
 
 ## Development installation
 

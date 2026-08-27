@@ -1,0 +1,10 @@
+{
+    // Whether to display the interactive "Preview" button / badge in Markdown edit mode.
+    // When enabled (default), a Preview badge or inline icon is shown at the top of the buffer.
+    // Set to false if you prefer a clean editing buffer and use the Command Palette or shortcuts.
+    "show_preview_button": true,
+
+    // Maximum character width for Markdown tables rendered in miniHTML.
+    // When null (default), the width dynamically adapts to the editor viewport width.
+    "table_max_width": null
+}
