@@ -604,6 +604,7 @@ class HtmlTableRenderer:
 
 def render_markdown_tables_as_html(text, max_width):
     """Scan markdown for table blocks and convert them to adaptive miniHTML tables."""
+    text = text.expandtabs(4)
     lines = text.split('\n')
     output = []
     table_buffer = []
@@ -708,9 +709,23 @@ class PreviewState(object):
     def _get_table_max_width(self):
         try:
             settings = sublime.load_settings("MarkdownPreviewOverlay.sublime-settings")
-            value = settings.get("table_max_width", 100)
+            value = settings.get("table_max_width")
             if isinstance(value, int) and not isinstance(value, bool) and value > 0:
                 return value
+
+            wrap_width = self.view.settings().get("wrap_width", 0)
+            if (isinstance(wrap_width, int)
+                    and not isinstance(wrap_width, bool)
+                    and wrap_width > 0):
+                return max(20, wrap_width - 8)
+
+            viewport_width, _ = self.view.viewport_extent()
+            character_width = self.view.em_width()
+            if viewport_width > 0 and character_width > 0:
+                return max(
+                    20,
+                    int(viewport_width / character_width) - 8,
+                )
         except Exception:
             pass
         return 100
