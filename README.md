@@ -1,8 +1,10 @@
 # MarkdownPreviewOverlay
 
-MarkdownPreviewOverlay is an editor-native Markdown reading mode for Sublime
-Text. It leaves the original Markdown in the buffer, folds the source, and
+MarkdownPreviewOverlay is an editor-native Markdown reading mode for Sublime Text.
+It leaves the original Markdown in the buffer, folds the source, and
 renders the document as a themed minihtml phantom in the same view.
+
+![MarkdownPreviewOverlay Demo](screenshot.gif)
 
 Rendering is delegated directly to the `mdpopups` Package Control dependency.
 The package does not bundle a separate Markdown parser.
