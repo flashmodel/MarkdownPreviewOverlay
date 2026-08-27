@@ -147,13 +147,13 @@ class PreviewState(object):
 
         if self.previewing:
             toolbar = (
-                '<div class="markdown-preview-overlay-toolbar">'
-                '<a class="markdown-preview-overlay-source" '
+                '<a class="markdown-preview-overlay-toolbar-link" '
                 'href="overlay:{0}" title="{1}">'
+                '<div class="markdown-preview-overlay-toolbar">'
                 '<span class="markdown-preview-overlay-arrow">◀</span>'
                 '<span class="markdown-preview-overlay-label">✏️Edit source</span>'
-                '</a>'
-                '</div>'.format(
+                '</div>'
+                '</a>'.format(
                     primary_action, primary_title
                 )
             )

@@ -3,25 +3,26 @@ CSS and HTML templates for Markdown Preview Overlay.
 """
 
 OVERLAY_CSS = """
+a.markdown-preview-overlay-toolbar-link {
+    display: block;
+    text-decoration: none;
+    cursor: pointer;
+}
 .markdown-preview-overlay-toolbar {
+    display: block;
     background-color: color(var(--cyanish) alpha(0.08));
     border: 1px solid color(var(--cyanish) alpha(0.25));
     border-left: 4px solid var(--cyanish);
     border-radius: 4px;
     padding: 0.5rem 0.8rem;
     margin: 0.5rem 0 1rem;
-}
-a.markdown-preview-overlay-source {
-    display: inline-block;
-    font-weight: bold;
-    cursor: pointer;
     color: var(--cyanish);
-    text-decoration: none;
+    font-weight: bold;
 }
 span.markdown-preview-overlay-arrow {
     display: inline-block;
     margin-left: 0.2rem;
-    margin-right: 1.5rem;
+    margin-right: 0.4rem;
 }
 span.markdown-preview-overlay-label {
     display: inline-block;
