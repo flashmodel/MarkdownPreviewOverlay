@@ -10,8 +10,8 @@ a.markdown-preview-overlay-toolbar-link {
 }
 .markdown-preview-overlay-toolbar {
     display: block;
-    background-color: color(var(--cyanish) alpha(0.08));
-    border: 1px solid color(var(--cyanish) alpha(0.25));
+    background-color: color(var(--background) blend(var(--foreground) 95%));
+    border: 1px solid color(var(--foreground) alpha(0.12));
     border-left: 4px solid var(--cyanish);
     border-radius: 4px;
     padding: 0.5rem 0.8rem;
@@ -22,7 +22,7 @@ a.markdown-preview-overlay-toolbar-link {
 span.markdown-preview-overlay-arrow {
     display: inline-block;
     margin-left: 0.2rem;
-    margin-right: 0.4rem;
+    margin-right: 1.5rem;
 }
 span.markdown-preview-overlay-label {
     display: inline-block;
