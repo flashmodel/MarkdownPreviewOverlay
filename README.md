@@ -44,9 +44,11 @@ Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for
 
 ## Configuration
 
+Access settings and key bindings via the menu: `Preferences -> Package Settings -> MarkdownPreviewOverlay`.
+
 ### Settings
 
-Settings can be customized in `MarkdownPreviewOverlay.sublime-settings`:
+Settings can be customized via `Preferences -> Package Settings -> MarkdownPreviewOverlay -> Settings` (or directly in `MarkdownPreviewOverlay.sublime-settings`):
 
 - `show_preview_button` (default: `true`): Controls whether the interactive `▣ Preview` button or badge is displayed at the top of the buffer in edit mode. Set to `false` for a distraction-free editing buffer when using the Command Palette or keyboard shortcuts.
 - `hide_line_numbers` (default: `true`): Automatically hides line numbers and the gutter in preview mode for a distraction-free reading experience, and restores them upon returning to edit mode.
@@ -54,7 +56,7 @@ Settings can be customized in `MarkdownPreviewOverlay.sublime-settings`:
 
 ### Key Bindings
 
-To avoid shortcut collisions with other packages, default key bindings are provided as `.example` templates. To enable keyboard shortcuts, copy the bindings from the `.sublime-keymap.example` files into your User keymap (`Preferences -> Key Bindings`):
+To avoid shortcut collisions with other packages, default key bindings are provided as `.example` templates. To enable keyboard shortcuts, open `Preferences -> Package Settings -> MarkdownPreviewOverlay -> Key Bindings` (or copy bindings from the `.sublime-keymap.example` files into your User keymap):
 
 - **macOS** (`Default (OSX).sublime-keymap.example`):
   ```json
