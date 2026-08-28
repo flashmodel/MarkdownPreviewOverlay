@@ -36,7 +36,23 @@ Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for
 | **`Markdown Preview Overlay: Edit Mode`** | Exits preview mode and returns to editing the source buffer. |
 | **`Markdown Preview Overlay: Refresh`** | Forces a re-render of the preview layout (useful after resizing the window). |
 
-### 3. Optional Key Bindings
+### Behavior & Document Lifecycle
+
+- **Read-only Safety**: Preview mode makes the buffer temporarily read-only to prevent accidental edits while viewing formatted text.
+- **Buffer Integrity**: Source folding uses standard Sublime Text region folding without modifying the buffer text or polluting the undo history.
+- **Auto-Refresh**: If the document is modified or saved, the preview updates automatically with debounced re-rendering.
+
+## Configuration
+
+### Settings
+
+Settings can be customized in `MarkdownPreviewOverlay.sublime-settings`:
+
+- `show_preview_button` (default: `true`): Controls whether the interactive `▣ Preview` button or badge is displayed at the top of the buffer in edit mode. Set to `false` for a distraction-free editing buffer when using the Command Palette or keyboard shortcuts.
+- `hide_line_numbers` (default: `true`): Automatically hides line numbers and the gutter in preview mode for a distraction-free reading experience, and restores them upon returning to edit mode.
+- `table_max_width` (default: `null`): Sets the maximum character width for tables rendered in miniHTML. When set to `null`, it dynamically fits within the viewport width.
+
+### Key Bindings
 
 To avoid shortcut collisions with other packages, default key bindings are provided as `.example` templates. To enable keyboard shortcuts, copy the bindings from the `.sublime-keymap.example` files into your User keymap (`Preferences -> Key Bindings`):
 
@@ -60,20 +76,6 @@ To avoid shortcut collisions with other packages, default key bindings are provi
       }
   ]
   ```
-
-### Behavior & Document Lifecycle
-
-- **Read-only Safety**: Preview mode makes the buffer temporarily read-only to prevent accidental edits while viewing formatted text.
-- **Buffer Integrity**: Source folding uses standard Sublime Text region folding without modifying the buffer text or polluting the undo history.
-- **Auto-Refresh**: If the document is modified or saved, the preview updates automatically with debounced re-rendering.
-
-## Configuration
-
-Settings can be customized in `MarkdownPreviewOverlay.sublime-settings`:
-
-- `show_preview_button` (default: `true`): Controls whether the interactive `▣ Preview` button or badge is displayed at the top of the buffer in edit mode. Set to `false` for a distraction-free editing buffer when using the Command Palette or keyboard shortcuts.
-- `hide_line_numbers` (default: `true`): Automatically hides line numbers and the gutter in preview mode for a distraction-free reading experience, and restores them upon returning to edit mode.
-- `table_max_width` (default: `null`): Sets the maximum character width for tables rendered in miniHTML. When set to `null`, it dynamically fits within the viewport width.
 
 ## Development installation
 
