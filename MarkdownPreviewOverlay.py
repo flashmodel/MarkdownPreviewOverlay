@@ -80,6 +80,7 @@ class PreviewState(object):
         self.original_read_only = False
         self.original_gutter = True
         self.original_line_numbers = True
+        self.original_highlight_line = None
         self.original_margin = None
         self.rendered_change_count = view.change_count()
         self.refresh_generation = 0
@@ -237,6 +238,7 @@ class PreviewState(object):
         self.original_read_only = self.view.is_read_only()
         self.original_gutter = self.view.settings().get("gutter", True)
         self.original_line_numbers = self.view.settings().get("line_numbers", True)
+        self.original_highlight_line = self.view.settings().get("highlight_line")
         self.original_margin = self.view.settings().get("margin")
         self.original_selections = _copy_regions(self.view.sel())
         self.original_viewport = self.view.viewport_position()
@@ -256,6 +258,7 @@ class PreviewState(object):
         self.previewing = True
         self.view.settings().set(MODE_SETTING, True)
         self.view.set_status(STATUS_KEY, "Markdown Preview Overlay")
+        self.view.settings().set("highlight_line", False)
         if self._should_hide_line_numbers():
             self.view.settings().set("line_numbers", False)
             self.view.settings().set("gutter", False)
@@ -286,6 +289,10 @@ class PreviewState(object):
         self.view.erase_status(STATUS_KEY)
         self.view.settings().set("gutter", self.original_gutter)
         self.view.settings().set("line_numbers", self.original_line_numbers)
+        if self.original_highlight_line is not None:
+            self.view.settings().set("highlight_line", self.original_highlight_line)
+        else:
+            self.view.settings().erase("highlight_line")
         if self.original_margin is not None:
             self.view.settings().set("margin", self.original_margin)
         else:
