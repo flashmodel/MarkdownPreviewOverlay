@@ -30,6 +30,7 @@ from .overlay.md_render import render_markdown_tables_as_html
 PHANTOM_KEY = "markdown_preview_overlay"
 ANNOTATION_KEY = "markdown_preview_overlay.control"
 MODE_SETTING = "markdown_preview_overlay.preview_mode"
+ORIGINAL_STATE_SETTING = "markdown_preview_overlay.original_state"
 STATUS_KEY = "markdown_preview_overlay"
 SETTINGS_NAME = "MarkdownPreviewOverlay.sublime-settings"
 SETTINGS_KEY = "markdown_preview_overlay.settings"
@@ -49,7 +50,7 @@ def _is_markdown(view):
     ):
         return False
 
-    # Keep transient views such as Codeform chat panes out of the default
+    # Keep transient views such as TermMate chat panes out of the default
     # experience. A buffer must be associated with a real file before this
     # package exposes preview controls.
     file_name = view.file_name()
@@ -64,6 +65,93 @@ def _is_markdown(view):
 
 def _copy_regions(regions):
     return [sublime.Region(region.a, region.b) for region in regions]
+
+
+def _capture_view_state(view):
+    """Capture the current viewport, selections, folds, and layout settings of a view."""
+    return {
+        "read_only": view.is_read_only(),
+        "gutter": view.settings().get("gutter"),
+        "line_numbers": view.settings().get("line_numbers"),
+        "highlight_line": view.settings().get("highlight_line"),
+        "margin": view.settings().get("margin"),
+        "selections": [[s.a, s.b] for s in view.sel()],
+        "viewport": list(view.viewport_position()),
+        "folds": [[f.a, f.b] for f in view.folded_regions()],
+    }
+
+
+def _restore_view_state(view, saved_state):
+    """Restore a view's presentation, selections, viewport, and folds from saved state."""
+    if not isinstance(saved_state, dict):
+        saved_state = {}
+
+    orig_read_only = saved_state.get("read_only", False)
+    orig_gutter = saved_state.get("gutter", True)
+    orig_line_numbers = saved_state.get("line_numbers", True)
+    orig_highlight_line = saved_state.get("highlight_line")
+    orig_margin = saved_state.get("margin")
+    orig_selections = [
+        sublime.Region(r[0], r[1])
+        for r in saved_state.get("selections", [])
+        if isinstance(r, (list, tuple)) and len(r) == 2
+    ]
+    orig_viewport = tuple(saved_state.get("viewport", [0.0, 0.0]))
+    orig_folds = [
+        sublime.Region(r[0], r[1])
+        for r in saved_state.get("folds", [])
+        if isinstance(r, (list, tuple)) and len(r) == 2
+    ]
+
+    # Temporarily make the view writable so restoration works for editable views
+    view.set_read_only(False)
+    view.unfold(sublime.Region(0, view.size()))
+
+    for region in orig_folds:
+        view.fold(region)
+
+    if orig_gutter is not None:
+        view.settings().set("gutter", orig_gutter)
+    else:
+        view.settings().erase("gutter")
+
+    if orig_line_numbers is not None:
+        view.settings().set("line_numbers", orig_line_numbers)
+    else:
+        view.settings().erase("line_numbers")
+
+    if orig_highlight_line is not None:
+        view.settings().set("highlight_line", orig_highlight_line)
+    else:
+        view.settings().erase("highlight_line")
+
+    if orig_margin is not None:
+        view.settings().set("margin", orig_margin)
+    else:
+        view.settings().erase("margin")
+
+    view.set_read_only(bool(orig_read_only))
+
+    selections = (
+        _copy_regions(orig_selections)
+        if orig_selections
+        else [sublime.Region(0, 0)]
+    )
+    viewport = (
+        orig_viewport
+        if len(orig_viewport) == 2
+        else (0.0, 0.0)
+    )
+
+    def restore_position():
+        if not view.is_valid():
+            return
+        view.sel().clear()
+        for selection in selections:
+            view.sel().add(selection)
+        view.set_viewport_position(viewport, False)
+
+    sublime.set_timeout(restore_position)
 
 
 class PreviewState(object):
@@ -88,6 +176,45 @@ class PreviewState(object):
         self.edit_control_mode = None
         self.refresh_lock = threading.Lock()
 
+    def _load_original_state(self, state):
+        """Load original presentation and layout attributes into instance state."""
+        if not isinstance(state, dict):
+            state = {}
+        self.original_read_only = state.get("read_only", False)
+        self.original_gutter = (
+            state.get("gutter") if state.get("gutter") is not None else True
+        )
+        self.original_line_numbers = (
+            state.get("line_numbers")
+            if state.get("line_numbers") is not None
+            else True
+        )
+        self.original_highlight_line = state.get("highlight_line")
+        self.original_margin = state.get("margin")
+        self.original_selections = [
+            sublime.Region(r[0], r[1])
+            for r in state.get("selections", [])
+            if isinstance(r, (list, tuple)) and len(r) == 2
+        ]
+        self.original_viewport = tuple(state.get("viewport", [0.0, 0.0]))
+        self.original_folds = [
+            sublime.Region(r[0], r[1])
+            for r in state.get("folds", [])
+            if isinstance(r, (list, tuple)) and len(r) == 2
+        ]
+
+    def _dump_original_state(self):
+        """Serialize current in-memory restoration data to a dictionary."""
+        return {
+            "read_only": self.original_read_only,
+            "gutter": self.original_gutter,
+            "line_numbers": self.original_line_numbers,
+            "highlight_line": self.original_highlight_line,
+            "margin": self.original_margin,
+            "selections": [[s.a, s.b] for s in self.original_selections],
+            "viewport": list(self.original_viewport),
+            "folds": [[f.a, f.b] for f in self.original_folds],
+        }
 
     def _should_hide_line_numbers(self):
         try:
@@ -133,73 +260,65 @@ class PreviewState(object):
             pass
         return 100
 
-    def render(self):
-        """Render the mode button and, in preview mode, the document."""
-
+    def _render_button(self):
+        """Render the edit-mode button as an annotation or compact inline icon."""
         if not self.view.is_valid():
             return
 
         self.view.erase_regions(ANNOTATION_KEY)
 
-        if not self.previewing:
-            if not self._should_show_button():
-                self.phantom_set.update([])
-                self.edit_control_mode = None
-                self.rendered_change_count = self.view.change_count()
-                return
+        if not self._should_show_button():
+            self.phantom_set.update([])
+            self.edit_control_mode = None
+            self.rendered_change_count = self.view.change_count()
+            return
 
-        if self.previewing:
-            primary_action = "edit"
-            primary_title = "Edit source"
-        else:
-            primary_action = "preview"
-            # The edit-mode phantom is only used when the first line is too
-            # long for the right-aligned annotation. Keep this fallback
-            # compact so it displaces as little source text as possible.
-            primary_label = "▣"
-            primary_title = "Preview Markdown"
+        if self._should_use_annotation():
+            self.phantom_set.update([])
+            self._render_annotation()
+            self.edit_control_mode = "annotation"
+            self.rendered_change_count = self.view.change_count()
+            return
 
-        if self.previewing:
-            toolbar = (
-                '<a class="markdown-preview-overlay-toolbar-link" '
-                'href="overlay:{0}" title="{1}">'
-                '<div class="markdown-preview-overlay-toolbar">'
-                '<span class="markdown-preview-overlay-arrow">◀</span>'
-                '<span class="markdown-preview-overlay-label">✏️Edit source</span>'
-                '</div>'
-                '</a>'.format(
-                    primary_action, primary_title
-                )
-            )
-            toolbar_layout = sublime.LAYOUT_BLOCK
-        else:
-            toolbar = (
-                '<a class="markdown-preview-overlay-preview-icon" '
-                'href="overlay:{0}" title="{1}">{2}</a>'.format(
-                    primary_action, primary_title, primary_label
-                )
-            )
-            toolbar_layout = sublime.LAYOUT_INLINE
+        toolbar = (
+            '<a class="markdown-preview-overlay-preview-icon" '
+            'href="overlay:preview" title="Preview Markdown">▣</a>'
+        )
+        phantom = mdpopups.Phantom(
+            sublime.Region(0),
+            toolbar,
+            sublime.LAYOUT_INLINE,
+            md=False,
+            css=OVERLAY_CSS,
+            on_navigate=self.on_navigate,
+            wrapper_class="markdown-preview-overlay"
+        )
+        self.phantom_set.update([phantom])
+        self.edit_control_mode = "inline"
+        self.rendered_change_count = self.view.change_count()
 
-            if self._should_use_annotation():
-                self.phantom_set.update([])
-                self._render_annotation()
-                self.edit_control_mode = "annotation"
-                self.rendered_change_count = self.view.change_count()
-                return
+    def _render_preview_overlay(self):
+        """Render the preview toolbar and document markdown phantoms below the folded document."""
+        if not self.view.is_valid():
+            return
 
-            self.edit_control_mode = "inline"
+        self.view.erase_regions(ANNOTATION_KEY)
 
-        # In preview mode, anchor at EOF. The source fold is [0, size), so
-        # this real boundary point stays outside the fold and lays the
-        # phantoms out below the folded document.
-        anchor = self.view.size() if self.previewing else 0
-
+        anchor = self.view.size()
+        toolbar = (
+            '<a class="markdown-preview-overlay-toolbar-link" '
+            'href="overlay:edit" title="Edit source">'
+            '<div class="markdown-preview-overlay-toolbar">'
+            '<span class="markdown-preview-overlay-arrow">◀</span>'
+            '<span class="markdown-preview-overlay-label">✏️Edit source</span>'
+            '</div>'
+            '</a>'
+        )
         phantoms = [
             mdpopups.Phantom(
                 sublime.Region(anchor),
                 toolbar,
-                toolbar_layout,
+                sublime.LAYOUT_BLOCK,
                 md=False,
                 css=OVERLAY_CSS,
                 on_navigate=self.on_navigate,
@@ -207,46 +326,51 @@ class PreviewState(object):
             )
         ]
 
-        if self.previewing:
-            markdown = self.view.substr(
-                sublime.Region(0, self.view.size())
-            )
-            max_width = self._get_table_max_width()
-            markdown = render_markdown_tables_as_html(markdown, max_width)
+        markdown = self.view.substr(sublime.Region(0, self.view.size()))
+        max_width = self._get_table_max_width()
+        markdown = render_markdown_tables_as_html(markdown, max_width)
 
-            phantoms.append(
-                mdpopups.Phantom(
-                    sublime.Region(anchor),
-                    markdown,
-                    sublime.LAYOUT_BLOCK,
-                    md=True,
-                    css=OVERLAY_CSS,
-                    on_navigate=self.on_navigate,
-                    wrapper_class="markdown-preview-overlay-document"
-                )
+        phantoms.append(
+            mdpopups.Phantom(
+                sublime.Region(anchor),
+                markdown,
+                sublime.LAYOUT_BLOCK,
+                md=True,
+                css=OVERLAY_CSS,
+                on_navigate=self.on_navigate,
+                wrapper_class="markdown-preview-overlay-document"
             )
+        )
 
         self.phantom_set.update(phantoms)
         self.rendered_change_count = self.view.change_count()
 
-    def show(self):
+    def render(self):
+        """Render the mode button in edit mode, or toolbar and document in preview mode."""
+        if not self.view.is_valid():
+            return
+        if self.previewing:
+            self._render_preview_overlay()
+        else:
+            self._render_button()
+
+    def show(self, preserve_saved_state=False):
         """Enter preview mode without changing the buffer contents."""
 
         if self.previewing or not _is_markdown(self.view):
             return
 
-        self.original_read_only = self.view.is_read_only()
-        self.original_gutter = self.view.settings().get("gutter", True)
-        self.original_line_numbers = self.view.settings().get("line_numbers", True)
-        self.original_highlight_line = self.view.settings().get("highlight_line")
-        self.original_margin = self.view.settings().get("margin")
-        self.original_selections = _copy_regions(self.view.sel())
-        self.original_viewport = self.view.viewport_position()
-        self.original_folds = _copy_regions(self.view.folded_regions())
+        if not preserve_saved_state or not self.view.settings().has(ORIGINAL_STATE_SETTING):
+            original_state = _capture_view_state(self.view)
+            self.view.settings().set(ORIGINAL_STATE_SETTING, original_state)
+            self._load_original_state(original_state)
+        else:
+            saved_state = self.view.settings().get(ORIGINAL_STATE_SETTING)
+            self._load_original_state(saved_state)
 
         # Remove nested folds before creating our single source fold. They are
         # recreated when preview mode ends.
-        for region in self.original_folds:
+        for region in _copy_regions(self.view.folded_regions()):
             self.view.unfold(region)
 
         self.fold_region = sublime.Region(
@@ -264,54 +388,29 @@ class PreviewState(object):
             self.view.settings().set("gutter", False)
             self.view.settings().set("margin", PREVIEW_MARGIN)
         self.view.set_read_only(True)
-        self.render()
-        self.view.set_viewport_position((0.0, 0.0), False)
+        self._render_preview_overlay()
+        if not preserve_saved_state:
+            self.view.set_viewport_position((0.0, 0.0), False)
 
     def hide(self):
         """Leave preview mode and restore the prior View presentation."""
 
-        if not self.previewing:
-            self.render()
+        if not self.previewing and not self.view.settings().get(MODE_SETTING, False):
+            self._render_button()
             return
 
-        # Temporarily make the view writable so restoration also works for a
-        # view that was editable before preview mode.
-        self.view.set_read_only(False)
-        if self.fold_region is not None and not self.fold_region.empty():
-            self.view.unfold(self.fold_region)
+        saved_state = self.view.settings().get(ORIGINAL_STATE_SETTING)
+        if not isinstance(saved_state, dict):
+            saved_state = self._dump_original_state()
 
-        for region in self.original_folds:
-            self.view.fold(region)
+        _restore_view_state(self.view, saved_state)
 
         self.previewing = False
         self.fold_region = None
         self.view.settings().erase(MODE_SETTING)
+        self.view.settings().erase(ORIGINAL_STATE_SETTING)
         self.view.erase_status(STATUS_KEY)
-        self.view.settings().set("gutter", self.original_gutter)
-        self.view.settings().set("line_numbers", self.original_line_numbers)
-        if self.original_highlight_line is not None:
-            self.view.settings().set("highlight_line", self.original_highlight_line)
-        else:
-            self.view.settings().erase("highlight_line")
-        if self.original_margin is not None:
-            self.view.settings().set("margin", self.original_margin)
-        else:
-            self.view.settings().erase("margin")
-        self.view.set_read_only(self.original_read_only)
-        self.render()
-
-        selections = _copy_regions(self.original_selections)
-        viewport = self.original_viewport
-
-        def restore_position():
-            if not self.view.is_valid():
-                return
-            self.view.sel().clear()
-            for selection in selections:
-                self.view.sel().add(selection)
-            self.view.set_viewport_position(viewport, False)
-
-        sublime.set_timeout(restore_position)
+        self._render_button()
 
     def refresh(self):
         """Re-read the buffer, update its fold, and rebuild the preview."""
@@ -331,7 +430,7 @@ class PreviewState(object):
 
         self.view.set_read_only(True)
         self.phantom_set = mdpopups.PhantomSet(self.view, PHANTOM_KEY)
-        self.render()
+        self._render_preview_overlay()
 
     def schedule_refresh(self):
         """Debounce refreshes caused by reloads or saves."""
@@ -393,11 +492,11 @@ class PreviewState(object):
             return
         if not self._should_show_button():
             if self.edit_control_mode is not None:
-                self.render()
+                self._render_button()
             return
         desired = "annotation" if self._should_use_annotation() else "inline"
         if desired != self.edit_control_mode:
-            self.render()
+            self._render_button()
 
     def _render_annotation(self):
         """Draw a Preview action at the right edge of the first line."""
@@ -435,6 +534,7 @@ class PreviewState(object):
 
         return end_xy[0] <= viewport_width - ANNOTATION_RESERVED_WIDTH
 
+
 _states = {}
 
 
@@ -444,6 +544,69 @@ def _state_for(view):
         state = PreviewState(view)
         _states[view.id()] = state
     return state
+
+
+def _update_button(view):
+    """Render or update the preview button for an edit-mode view."""
+
+    if not view.is_valid():
+        return
+
+    if not _is_markdown(view):
+        state = _states.pop(view.id(), None)
+        if state is not None:
+            state.dispose(restore=True)
+        return
+
+    state = _state_for(view)
+    if not state.previewing and not view.settings().get(MODE_SETTING, False):
+        state._render_button()
+
+
+def _sync_preview_overlay(view):
+    """Synchronize the preview overlay and folded markdown state for a view."""
+
+    if not view.is_valid() or view.is_loading():
+        return
+
+    if not _is_markdown(view):
+        state = _states.pop(view.id(), None)
+        if state is not None:
+            state.dispose(restore=True)
+        return
+
+    state = _state_for(view)
+    is_preview_mode = bool(view.settings().get(MODE_SETTING, False))
+
+    if is_preview_mode:
+        if not state.previewing:
+            state.show(preserve_saved_state=True)
+        else:
+            state.schedule_refresh()
+    else:
+        if state.previewing:
+            state.hide()
+
+
+def _sync_view_mode(view):
+    """Synchronize both the preview overlay and the edit-mode button for a view."""
+
+    if not view.is_valid() or view.is_loading():
+        return
+
+    if not _is_markdown(view):
+        state = _states.pop(view.id(), None)
+        if state is not None:
+            state.dispose(restore=True)
+        return
+
+    state = _state_for(view)
+    is_preview_mode = bool(view.settings().get(MODE_SETTING, False))
+
+    if is_preview_mode:
+        _sync_preview_overlay(view)
+    else:
+        _update_button(view)
 
 
 def _open_link(view, href):
@@ -478,7 +641,7 @@ def _open_link(view, href):
 class MarkdownPreviewOverlayToggleCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         state = _state_for(self.view)
-        if state.previewing:
+        if state.previewing or self.view.settings().get(MODE_SETTING, False):
             state.hide()
         else:
             state.show()
@@ -493,9 +656,11 @@ class MarkdownPreviewOverlayShowCommand(sublime_plugin.TextCommand):
 
     def is_enabled(self):
         state = _states.get(self.view.id())
-        return _is_markdown(self.view) and not (
-            state is not None and state.previewing
+        is_preview = (
+            (state is not None and state.previewing)
+            or bool(self.view.settings().get(MODE_SETTING, False))
         )
+        return _is_markdown(self.view) and not is_preview
 
 
 class MarkdownPreviewOverlayHideCommand(sublime_plugin.TextCommand):
@@ -504,7 +669,11 @@ class MarkdownPreviewOverlayHideCommand(sublime_plugin.TextCommand):
 
     def is_enabled(self):
         state = _states.get(self.view.id())
-        return bool(state is not None and state.previewing)
+        is_preview = (
+            (state is not None and state.previewing)
+            or bool(self.view.settings().get(MODE_SETTING, False))
+        )
+        return _is_markdown(self.view) and bool(is_preview)
 
 
 class MarkdownPreviewOverlayRefreshCommand(sublime_plugin.TextCommand):
@@ -513,39 +682,28 @@ class MarkdownPreviewOverlayRefreshCommand(sublime_plugin.TextCommand):
 
     def is_enabled(self):
         state = _states.get(self.view.id())
-        return bool(state is not None and state.previewing)
+        is_preview = (
+            (state is not None and state.previewing)
+            or bool(self.view.settings().get(MODE_SETTING, False))
+        )
+        return _is_markdown(self.view) and bool(is_preview)
 
 
 class MarkdownPreviewOverlayListener(sublime_plugin.EventListener):
     def on_load_async(self, view):
-        self._schedule_button_update(view)
-        state = _states.get(view.id())
-        if state is not None and state.previewing:
-            state.schedule_refresh()
+        _sync_view_mode(view)
 
     def on_activated_async(self, view):
-        self._schedule_button_update(view)
-        state = _states.get(view.id())
-        if state is not None and state.previewing:
-            state.schedule_refresh()
+        _sync_view_mode(view)
 
     def on_reload_async(self, view):
-        self._schedule_button_update(view)
-        state = _states.get(view.id())
-        if state is not None and state.previewing:
-            state.schedule_refresh()
+        _sync_view_mode(view)
 
     def on_revert_async(self, view):
-        self._schedule_button_update(view)
-        state = _states.get(view.id())
-        if state is not None and state.previewing:
-            state.schedule_refresh()
+        _sync_view_mode(view)
 
     def on_post_save_async(self, view):
-        self._schedule_button_update(view)
-        state = _states.get(view.id())
-        if state is not None:
-            state.schedule_refresh()
+        _sync_view_mode(view)
 
     def on_modified_async(self, view):
         state = _states.get(view.id())
@@ -563,23 +721,7 @@ class MarkdownPreviewOverlayListener(sublime_plugin.EventListener):
     def on_close(self, view):
         state = _states.pop(view.id(), None)
         if state is not None:
-            state.dispose()
-
-    @staticmethod
-    def _schedule_button_update(view):
-        def update():
-            if not view.is_valid():
-                return
-            if _is_markdown(view):
-                state = _state_for(view)
-                if not state.previewing:
-                    state.render()
-            else:
-                state = _states.pop(view.id(), None)
-                if state is not None:
-                    state.dispose()
-
-        sublime.set_timeout(update)
+            state.dispose(restore=True)
 
 
 def _on_settings_change():
@@ -609,8 +751,7 @@ def plugin_loaded():
 
     for window in sublime.windows():
         for view in window.views():
-            if _is_markdown(view):
-                _state_for(view).render()
+            _sync_view_mode(view)
 
 
 def plugin_unloaded():
@@ -618,5 +759,5 @@ def plugin_unloaded():
     settings.clear_on_change(SETTINGS_KEY)
 
     for state in list(_states.values()):
-        state.dispose()
+        state.dispose(restore=False)
     _states.clear()
