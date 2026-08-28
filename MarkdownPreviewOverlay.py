@@ -313,8 +313,8 @@ class PreviewState(object):
             return
 
         self.view.set_read_only(False)
-        if self.fold_region is not None and not self.fold_region.empty():
-            self.view.unfold(self.fold_region)
+        for fold in _copy_regions(self.view.folded_regions()):
+            self.view.unfold(fold)
 
         self.fold_region = sublime.Region(
             0, self.view.size()
@@ -323,6 +323,7 @@ class PreviewState(object):
             self.view.fold(self.fold_region)
 
         self.view.set_read_only(True)
+        self.phantom_set = mdpopups.PhantomSet(self.view, PHANTOM_KEY)
         self.render()
 
     def schedule_refresh(self):
@@ -336,14 +337,10 @@ class PreviewState(object):
             with self.refresh_lock:
                 if generation != self.refresh_generation:
                     return
-            if (
-                self.previewing
-                and self.view.is_valid()
-                and self.view.change_count() != self.rendered_change_count
-            ):
+            if self.previewing and self.view.is_valid():
                 self.refresh()
 
-        sublime.set_timeout(refresh_if_current, 250)
+        sublime.set_timeout(refresh_if_current, 100)
 
     def schedule_control_render(self):
         """Debounce edit-mode placement after the first line changes."""
@@ -515,9 +512,27 @@ class MarkdownPreviewOverlayRefreshCommand(sublime_plugin.TextCommand):
 class MarkdownPreviewOverlayListener(sublime_plugin.EventListener):
     def on_load_async(self, view):
         self._schedule_button_update(view)
+        state = _states.get(view.id())
+        if state is not None and state.previewing:
+            state.schedule_refresh()
 
     def on_activated_async(self, view):
         self._schedule_button_update(view)
+        state = _states.get(view.id())
+        if state is not None and state.previewing:
+            state.schedule_refresh()
+
+    def on_reload_async(self, view):
+        self._schedule_button_update(view)
+        state = _states.get(view.id())
+        if state is not None and state.previewing:
+            state.schedule_refresh()
+
+    def on_revert_async(self, view):
+        self._schedule_button_update(view)
+        state = _states.get(view.id())
+        if state is not None and state.previewing:
+            state.schedule_refresh()
 
     def on_post_save_async(self, view):
         self._schedule_button_update(view)
