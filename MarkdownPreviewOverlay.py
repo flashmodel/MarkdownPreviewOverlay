@@ -239,6 +239,16 @@ class PreviewState(object):
         except Exception:
             return True
 
+    def _should_show_status_indicator(self):
+        try:
+            settings = sublime.load_settings(SETTINGS_NAME)
+            value = settings.get("show_status_indicator")
+            if value is None:
+                value = settings.get("show_status", True)
+            return bool(value)
+        except Exception:
+            return True
+
     def _should_resolve_image_paths(self):
         try:
             settings = sublime.load_settings(SETTINGS_NAME)
@@ -415,7 +425,10 @@ class PreviewState(object):
 
         self.previewing = True
         self.view.settings().set(MODE_SETTING, True)
-        self.view.set_status(STATUS_KEY, "Markdown Preview Overlay")
+        if self._should_show_status_indicator():
+            self.view.set_status(STATUS_KEY, "MarkdownOverlay")
+        else:
+            self.view.erase_status(STATUS_KEY)
         self.view.settings().set("highlight_line", False)
         if self._should_hide_line_numbers():
             self.view.settings().set("line_numbers", False)
@@ -653,7 +666,7 @@ def _open_link(view, href):
 
     if href.startswith("#"):
         sublime.status_message(
-            "Markdown Preview Overlay: heading links are not supported"
+            "Markdown Overlay: heading links are not supported"
         )
         return
 

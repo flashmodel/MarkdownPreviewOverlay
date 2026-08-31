@@ -35,14 +35,14 @@ The package injects lightweight, non-intrusive interactive controls directly int
 
 ### 2. Command Palette
 
-Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for `Markdown Preview Overlay`:
+Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for `Markdown Overlay` (or type `mdo`):
 
 | Command | Description |
 | :--- | :--- |
-| **`Markdown Preview Overlay: Toggle`** | Toggles seamlessly between Preview Mode and Edit Mode. |
-| **`Markdown Preview Overlay: Preview Mode`** | Enters the rendered preview mode for the active Markdown document. |
-| **`Markdown Preview Overlay: Edit Mode`** | Exits preview mode and returns to editing the source buffer. |
-| **`Markdown Preview Overlay: Refresh`** | Forces a re-render of the preview layout (useful after resizing the window). |
+| **`Markdown Overlay: Toggle`** | Toggles seamlessly between Preview Mode and Edit Mode. |
+| **`Markdown Overlay: Preview Mode`** | Enters the rendered preview mode for the active Markdown document. |
+| **`Markdown Overlay: Edit Mode`** | Exits preview mode and returns to editing the source buffer. |
+| **`Markdown Overlay: Refresh`** | Forces a re-render of the preview layout (useful after resizing the window). |
 
 ### Behavior & Document Lifecycle
 
@@ -61,6 +61,7 @@ Settings can be customized via `Preferences -> Package Settings -> MarkdownPrevi
 
 - `show_preview_button` (default: `true`): Controls whether the interactive `▣ Preview` button or badge is displayed at the top of the buffer in edit mode. Set to `false` for a distraction-free editing buffer when using the Command Palette or keyboard shortcuts.
 - `hide_line_numbers` (default: `true`): Automatically hides line numbers and the gutter in preview mode for a distraction-free reading experience, and restores them upon returning to edit mode.
+- `show_status_indicator` (default: `true`): Controls whether the `MarkdownOverlay` active mode indicator is displayed in the status bar during preview mode. Set to `false` for a completely distraction-free status bar.
 - `table_max_width` (default: `null`): Sets the maximum character width for tables rendered in miniHTML. When set to `null`, it dynamically fits within the viewport width.
 - `resolve_image_paths` (default: `false`): Controls whether to automatically rewrite relative Markdown/HTML image paths to absolute `file://` URIs and adapt large images to the viewport. When `false` (default), image paths in Markdown are left as-is.
 - `image_max_width` (default: `900`): Sets the maximum display width in pixels for rendered images when `resolve_image_paths` is enabled. In narrower viewports or split views, images automatically downscale to fit comfortably without overflowing. Set to `null` for pure viewport-adaptive scaling.

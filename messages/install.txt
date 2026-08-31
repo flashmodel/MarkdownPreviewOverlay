@@ -1,4 +1,4 @@
 MarkdownPreviewOverlay is installed.
 
 Open a Markdown file and click the Preview button at the beginning of the view,
-or run “Markdown Preview Overlay: Toggle” from the Command Palette.
+or run “Markdown Overlay: Toggle” from the Command Palette.

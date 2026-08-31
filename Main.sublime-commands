@@ -1,18 +1,18 @@
 [
     {
-        "caption": "Markdown Preview Overlay: Toggle",
+        "caption": "Markdown Overlay: Toggle",
         "command": "markdown_preview_overlay_toggle"
     },
     {
-        "caption": "Markdown Preview Overlay: Preview Mode",
+        "caption": "Markdown Overlay: Preview Mode",
         "command": "markdown_preview_overlay_show"
     },
     {
-        "caption": "Markdown Preview Overlay: Edit Mode",
+        "caption": "Markdown Overlay: Edit Mode",
         "command": "markdown_preview_overlay_hide"
     },
     {
-        "caption": "Markdown Preview Overlay: Refresh",
+        "caption": "Markdown Overlay: Refresh",
         "command": "markdown_preview_overlay_refresh"
     }
 ]
