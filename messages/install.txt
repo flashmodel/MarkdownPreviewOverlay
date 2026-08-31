@@ -1,4 +1,29 @@
-MarkdownPreviewOverlay is installed.
+MarkdownPreviewOverlay for Sublime Text
+=======================================
 
-Open a Markdown file and click the Preview button at the beginning of the view,
-or run “Markdown Overlay: Toggle” from the Command Palette.
+MarkdownPreviewOverlay gives you an in-place Markdown preview right within
+the same view. It renders formatted text directly inside the original file
+tab—no split panes or external browser windows needed.
+
+Key Features
+
+- Single-View Experience: Read formatted Markdown directly in the same view.
+- State Preservation: Restores cursor, selection, scroll position, and folds.
+- Interactive button: "▣ Preview" and "✏️ Edit source" buttons in the buffer.
+- Theme-Adaptive & Lightweight: Native minihtml with tables, code, and images.
+
+Quick Start
+
+1. Open any Markdown file (.md, .markdown, etc.).
+2. Toggle preview mode using either:
+   - Clicking the "▣ Preview" button at the top of the buffer.
+   - Opening the Command Palette (Cmd+Shift+P / Ctrl+Shift+P) and
+     running "Markdown Overlay: Toggle" (or search "mdo").
+3. Exit preview mode anytime by clicking "✏️ Edit source" or toggling
+   again.
+
+Settings:
+Preferences -> Package Settings -> MarkdownPreviewOverlay -> Settings
+
+For more usage details:
+https://github.com/flashmodel/MarkdownPreviewOverlay#usage
