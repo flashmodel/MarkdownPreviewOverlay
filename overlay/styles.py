@@ -155,6 +155,7 @@ a.markdown-preview-overlay-preview-icon {
     text-decoration: underline;
 }
 .markdown-preview-overlay-document img {
+    display: block;
     max-width: 100%;
     margin: 0.8rem 0;
 }

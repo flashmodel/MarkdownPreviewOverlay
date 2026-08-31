@@ -11,5 +11,16 @@
 
     // Maximum character width for Markdown tables rendered in miniHTML.
     // When null (default), the width dynamically adapts to the editor viewport width.
-    "table_max_width": null
+    "table_max_width": null,
+
+    // Whether to resolve relative image paths to absolute file:// URIs and adapt image dimensions in preview mode.
+    // When false (default), image paths in Markdown are left untouched.
+    // Set to true to automatically resolve relative image links and adapt large images to the viewport.
+    "resolve_image_paths": false,
+
+    // Maximum display width in pixels for images rendered in miniHTML when resolve_image_paths is enabled.
+    // Acts as an upper cap (default: 900, matching GitHub standard width).
+    // In narrower viewports or split views, images automatically downscale to fit the viewport.
+    // Set to null to remove the fixed cap and always adapt purely to viewport width.
+    "image_max_width": 900
 }

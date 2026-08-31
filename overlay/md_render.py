@@ -1,8 +1,12 @@
 """Custom Markdown rendering, transformations, and miniHTML formatting."""
 
 import html
+import os
+import pathlib
 import re
+import struct
 import unicodedata
+import urllib.parse
 
 
 class HtmlTableRenderer:
@@ -401,59 +405,248 @@ class HtmlTableRenderer:
             '</style><div class="table">' + ''.join(rendered) + '</div>'
         )
 
-
-def render_markdown_tables_as_html(text, max_width):
-    """Scan markdown for table blocks and convert them to adaptive miniHTML tables."""
-    text = text.expandtabs(4)
-    lines = text.split('\n')
-    output = []
-    table_buffer = []
-    in_code_block = False
-    fence_char = None
-    fence_len = 0
-
-    formatter = HtmlTableRenderer(max_width=max_width)
-
-    def flush_table():
+    def flush_table_buffer(self, table_buffer, output):
+        """Parse buffered table lines and append rendered table or raw lines to output."""
         if not table_buffer:
             return
-        parsed = formatter.parse_table(table_buffer)
+        parsed = self.parse_table(table_buffer)
         if parsed is not None:
-            html_table = formatter.render_html_table(parsed)
             # Blank lines around raw HTML blocks ensure Python-Markdown treats
             # it as a raw HTML block and preserves it without escaping.
             output.append('')
-            output.append(html_table)
+            output.append(self.render_html_table(parsed))
             output.append('')
         else:
             output.extend(table_buffer)
         table_buffer.clear()
 
-    for line in lines:
-        stripped = line.strip()
+    def transform_markdown(self, text):
+        """Scan markdown for table blocks and convert them to adaptive miniHTML tables."""
+        text = text.expandtabs(4)
+        lines = text.split('\n')
+        output = []
+        table_buffer = []
+        in_code_block = False
+        fence_char = None
+        fence_len = 0
 
-        # Handle code fences (``` or ~~~)
-        if not in_code_block:
-            if stripped.startswith('```') or stripped.startswith('~~~'):
-                flush_table()
-                in_code_block = True
-                fence_char = stripped[0]
-                fence_len = len(stripped) - len(stripped.lstrip(fence_char))
+        for line in lines:
+            stripped = line.strip()
+
+            # Handle code fences (``` or ~~~)
+            if not in_code_block:
+                if stripped.startswith('```') or stripped.startswith('~~~'):
+                    self.flush_table_buffer(table_buffer, output)
+                    in_code_block = True
+                    fence_char = stripped[0]
+                    fence_len = len(stripped) - len(stripped.lstrip(fence_char))
+                    output.append(line)
+                    continue
+            else:
+                if stripped.startswith(fence_char * fence_len):
+                    in_code_block = False
+                    fence_char = None
+                    fence_len = 0
                 output.append(line)
                 continue
-        else:
-            if stripped.startswith(fence_char * fence_len):
-                in_code_block = False
-                fence_char = None
-                fence_len = 0
-            output.append(line)
-            continue
 
-        if stripped.startswith('|') and '|' in stripped[1:]:
-            table_buffer.append(line)
-        else:
-            flush_table()
-            output.append(line)
+            if stripped.startswith('|') and '|' in stripped[1:]:
+                table_buffer.append(line)
+            else:
+                self.flush_table_buffer(table_buffer, output)
+                output.append(line)
 
-    flush_table()
-    return '\n'.join(output)
+        self.flush_table_buffer(table_buffer, output)
+        return '\n'.join(output)
+
+
+def render_markdown_tables_as_html(text, max_width):
+    """Scan markdown for table blocks and convert them to adaptive miniHTML tables."""
+    return HtmlTableRenderer(max_width=max_width).transform_markdown(text)
+
+
+def get_image_size(file_path):
+    """Read image dimensions (width, height) directly from file header without external dependencies."""
+    if not file_path or not os.path.isfile(file_path):
+        return None
+    try:
+        with open(file_path, 'rb') as f:
+            head = f.read(64)
+            if not head:
+                return None
+
+            # PNG: bytes 16..24 (width, height as 4-byte big-endian ints)
+            if head.startswith(b'\x89PNG\r\n\x1a\n') and len(head) >= 24:
+                return struct.unpack('>II', head[16:24])
+
+            # GIF: bytes 6..10 (width, height as 2-byte little-endian ints)
+            if (head.startswith(b'GIF87a') or head.startswith(b'GIF89a')) and len(head) >= 10:
+                return struct.unpack('<HH', head[6:10])
+
+            # BMP: bytes 18..26 (width, height as 4-byte little-endian ints)
+            if head.startswith(b'BM') and len(head) >= 26:
+                return struct.unpack('<II', head[18:26])
+
+            # WebP: RIFF....WEBP
+            if head.startswith(b'RIFF') and len(head) >= 30 and head[8:12] == b'WEBP':
+                if head[12:16] == b'VP8 ' and len(head) >= 30:
+                    w, h = struct.unpack('<HH', head[26:30])
+                    return (w & 0x3fff, h & 0x3fff)
+                elif head[12:16] == b'VP8L' and len(head) >= 25:
+                    b0, b1, b2, b3, b4 = head[21:26]
+                    w = 1 + (((b1 & 0x3f) << 8) | b0)
+                    h = 1 + (((b3 & 0xf) << 10) | (b2 << 2) | ((b1 & 0xc0) >> 6))
+                    return (w, h)
+                elif head[12:16] == b'VP8X' and len(head) >= 30:
+                    w = 1 + (head[24] | (head[25] << 8) | (head[26] << 16))
+                    h = 1 + (head[27] | (head[28] << 8) | (head[29] << 16))
+                    return (w, h)
+
+            # JPEG: scan markers for SOF (0xFF, 0xC0..0xC3)
+            if head.startswith(b'\xff\xd8'):
+                f.seek(0)
+                data = f.read(8192)
+                idx = 2
+                while idx < len(data) - 8:
+                    if data[idx] != 0xff:
+                        idx += 1
+                        continue
+                    marker = data[idx + 1]
+                    if marker in (0xc0, 0xc1, 0xc2, 0xc3):
+                        h, w = struct.unpack('>HH', data[idx + 5:idx + 9])
+                        return (w, h)
+                    idx += 2 + struct.unpack('>H', data[idx + 2:idx + 4])[0]
+    except Exception:
+        pass
+    return None
+
+
+class MarkdownImageResolver:
+    """Helper to resolve relative Markdown and HTML image paths to absolute file:// URLs and adapt large images."""
+
+    _MD_IMG_PATTERN = re.compile(
+        r'!\[(?P<alt>[^\]]*)\]\(\s*(?P<url><[^>\n]+>|[^)\s]+)(?:\s+(?P<title>(?:"[^"]*")|(?:\'[^\']*\')|(?:\([^)\n]*\))))?\s*\)'
+    )
+
+    _HTML_IMG_PATTERN = re.compile(
+        r'(<img\b[^>]*?\bsrc=)(?P<quote>["\'])(?P<src>[^"\'\n]+)(?P=quote)',
+        re.IGNORECASE
+    )
+
+    _CODE_PATTERN = re.compile(
+        r'(```[\s\S]*?```|~~~[\s\S]*?~~~|`+[^`\n]+`+)'
+    )
+
+    def __init__(self, file_name, max_width=None):
+        self.file_name = file_name
+        self.max_width = max_width
+        self.base_dir = (
+            os.path.dirname(os.path.abspath(file_name))
+            if file_name
+            else None
+        )
+
+    def is_url_scheme(self, src):
+        """Return True if src contains a scheme like http:, data:, or res: (excluding Windows drive letters)."""
+        if not src:
+            return False
+        # Exclude Windows drive letters like C:\ or D:/
+        if (
+            len(src) >= 2
+            and src[0].isalpha()
+            and src[1] == ':'
+            and (len(src) == 2 or src[2] in ('\\', '/'))
+        ):
+            return False
+        return bool(re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', src))
+
+    def resolve_path(self, raw_path):
+        """Resolve a single raw image path into (uri, local_abs_path)."""
+        if not self.base_dir or not raw_path or raw_path.startswith('//') or raw_path.startswith('#'):
+            return None, None
+        if self.is_url_scheme(raw_path):
+            return None, None
+
+        url_parts = urllib.parse.urlsplit(raw_path)
+        path_part = url_parts.path
+        if not path_part:
+            return None, None
+
+        unquoted = urllib.parse.unquote(path_part)
+        if os.path.isabs(unquoted):
+            abs_path = os.path.normpath(unquoted)
+        else:
+            abs_path = os.path.normpath(os.path.join(self.base_dir, unquoted))
+
+        try:
+            uri = pathlib.Path(abs_path).as_uri()
+            if url_parts.query:
+                uri += f'?{url_parts.query}'
+            if url_parts.fragment:
+                uri += f'#{url_parts.fragment}'
+            return uri, abs_path
+        except Exception:
+            return None, None
+
+    def replace_md_image(self, match):
+        """Regex replacement callback for Markdown image syntax."""
+        alt = match.group('alt')
+        raw_url = match.group('url')
+        title = match.group('title')
+        wrapped = raw_url.startswith('<') and raw_url.endswith('>')
+        url = raw_url[1:-1] if wrapped else raw_url
+
+        resolved_uri, local_path = self.resolve_path(url)
+        if not resolved_uri:
+            return match.group(0)
+
+        # Scale down proportionally if local image width exceeds available viewport width
+        if local_path and self.max_width:
+            size = get_image_size(local_path)
+            if size and size[0] > self.max_width:
+                orig_w, orig_h = size
+                scaled_h = max(1, int(orig_h * (self.max_width / orig_w)))
+                title_attr = f' title="{title}"' if title else ''
+                return (
+                    f'<img src="{resolved_uri}" alt="{alt}"{title_attr} '
+                    f'width="{self.max_width}" height="{scaled_h}" />'
+                )
+
+        if title:
+            return f'![{alt}]({resolved_uri} {title})'
+        return f'![{alt}]({resolved_uri})'
+
+    def replace_html_image(self, match):
+        """Regex replacement callback for HTML <img> tag syntax."""
+        prefix = match.group(1)
+        quote = match.group('quote')
+        src = match.group('src')
+
+        resolved_uri, _ = self.resolve_path(src)
+        if not resolved_uri:
+            return match.group(0)
+
+        return f'{prefix}{quote}{resolved_uri}{quote}'
+
+    def process_segment(self, segment):
+        """Process a text segment outside code blocks."""
+        segment = self._MD_IMG_PATTERN.sub(self.replace_md_image, segment)
+        segment = self._HTML_IMG_PATTERN.sub(self.replace_html_image, segment)
+        return segment
+
+    def resolve(self, markdown_text):
+        """Transform all relative image paths in markdown_text to file:// URIs and scale down large images."""
+        if not self.base_dir or not markdown_text:
+            return markdown_text
+
+        parts = self._CODE_PATTERN.split(markdown_text)
+        for i in range(0, len(parts), 2):
+            parts[i] = self.process_segment(parts[i])
+
+        return ''.join(parts)
+
+
+def resolve_markdown_image_paths(markdown_text, file_name, max_width=None):
+    """Resolve relative Markdown and HTML image paths to absolute file:// URLs and adapt large images."""
+    return MarkdownImageResolver(file_name, max_width=max_width).resolve(markdown_text)
+

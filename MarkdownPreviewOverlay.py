@@ -24,7 +24,10 @@ from .overlay.styles import (
     ANNOTATION_HTML,
     ANNOTATION_RESERVED_WIDTH,
 )
-from .overlay.md_render import render_markdown_tables_as_html
+from .overlay.md_render import (
+    render_markdown_tables_as_html,
+    resolve_markdown_image_paths,
+)
 
 
 PHANTOM_KEY = "markdown_preview_overlay"
@@ -236,6 +239,13 @@ class PreviewState(object):
         except Exception:
             return True
 
+    def _should_resolve_image_paths(self):
+        try:
+            settings = sublime.load_settings(SETTINGS_NAME)
+            return bool(settings.get("resolve_image_paths", False))
+        except Exception:
+            return False
+
     def _get_table_max_width(self):
         try:
             settings = sublime.load_settings(SETTINGS_NAME)
@@ -259,6 +269,26 @@ class PreviewState(object):
         except Exception:
             pass
         return 100
+
+    def _get_image_max_width(self):
+        """Calculate maximum display width for images, bounded by viewport width and settings."""
+        try:
+            viewport_width, _ = self.view.viewport_extent()
+            available = (
+                max(100, min(int(viewport_width * 0.96), int(viewport_width - 36)))
+                if viewport_width > 0
+                else None
+            )
+
+            settings = sublime.load_settings(SETTINGS_NAME)
+            configured = settings.get("image_max_width")
+            if isinstance(configured, int) and not isinstance(configured, bool) and configured > 0:
+                return min(configured, available) if available else configured
+
+            return available
+        except Exception:
+            pass
+        return None
 
     def _render_button(self):
         """Render the edit-mode button as an annotation or compact inline icon."""
@@ -327,6 +357,10 @@ class PreviewState(object):
         ]
 
         markdown = self.view.substr(sublime.Region(0, self.view.size()))
+        file_name = self.view.file_name()
+        if file_name and self._should_resolve_image_paths():
+            max_img_width = self._get_image_max_width()
+            markdown = resolve_markdown_image_paths(markdown, file_name, max_width=max_img_width)
         max_width = self._get_table_max_width()
         markdown = render_markdown_tables_as_html(markdown, max_width)
 
