@@ -100,3 +100,7 @@ according to `dependencies.json`.
 
 Sublime Text build 4050 or newer is required. The package selects Sublime's
 Python 3.8 plugin host through `.python-version`.
+
+## License
+
+This project is licensed under the [Apache-2.0 License](LICENSE).
