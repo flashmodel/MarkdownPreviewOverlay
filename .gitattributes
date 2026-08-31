@@ -1,0 +1,6 @@
+# Package Control distribution ignore list
+tests export-ignore
+screenshot.gif export-ignore
+.DS_Store export-ignore
+.gitignore export-ignore
+.gitattributes export-ignore
