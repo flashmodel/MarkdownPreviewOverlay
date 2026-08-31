@@ -6,11 +6,19 @@ renders the document as a themed minihtml phantom in the same view.
 
 ![MarkdownPreviewOverlay Demo](screenshot.gif)
 
-Rendering is delegated directly to the `mdpopups` Package Control dependency.
-The package does not bundle a separate Markdown parser.
-
 This extension is built on concept discussed in the forum topic: [Provide markdown preview mode using folded source and phantom](https://forum.sublimetext.com/t/provide-markdown-preview-mode-using-folded-source-and-phantom/79042). Join the discussion and share your thoughts or feedback in that thread!
 
+## Features & Capabilities
+
+Compared to traditional external browsers or split-pane previewers, **MarkdownPreviewOverlay** renders your Markdown preview directly inside the same editor view while keeping your plain-text workflow intact:
+
+- **Zero Context-Switching**: Read and edit in the exact same view—never leave Sublime Text or juggle external browser windows.
+- **No Split-Pane Clutter**: Maximizes your entire editor width without dividing the screen into cramped columns or causing premature line wrapping.
+- **Exact Scroll & Cursor Preservation**: Seamlessly preserves and restores your exact cursor positions, active selections, viewport scroll offset, and manual code folds when toggling modes.
+- **Lightweight & Theme-Adaptive**: Powered directly by Sublime Text’s built-in `minihtml` engine (`mdpopups`) with zero background servers, minimal memory overhead, and automatic color scheme alignment.
+- **Full Complex Markdown Support**: Seamlessly renders complex Markdown constructs, featuring a custom table engine that auto-adapts to your viewport width, along with syntax-highlighted code blocks, blockquotes, and nested lists tailored for miniHTML.
+
+> **Note**: Rendering is delegated directly to the `mdpopups` Package Control dependency without bundling a separate Markdown parser.
 
 ## Usage
 
@@ -41,6 +49,7 @@ Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for
 - **Read-only Safety**: Preview mode makes the buffer temporarily read-only to prevent accidental edits while viewing formatted text.
 - **Buffer Integrity**: Source folding uses standard Sublime Text region folding without modifying the buffer text or polluting the undo history.
 - **Auto-Refresh**: If the document is modified or saved, the preview updates automatically with debounced re-rendering.
+
 
 ## Configuration
 
