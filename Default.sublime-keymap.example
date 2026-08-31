@@ -1,6 +1,6 @@
 [
     {
-        "keys": ["ctrl+alt+m"],
+        "keys": ["primary+alt+r"],
         "command": "markdown_preview_overlay_toggle",
         "context": [
             {

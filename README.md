@@ -69,28 +69,19 @@ Settings can be customized via `Preferences -> Package Settings -> MarkdownPrevi
 
 ### Key Bindings
 
-To avoid shortcut collisions with other packages, default key bindings are provided as `.example` templates. To enable keyboard shortcuts, open `Preferences -> Package Settings -> MarkdownPreviewOverlay -> Key Bindings` (or copy bindings from the `.sublime-keymap.example` files into your User keymap):
+To avoid shortcut collisions with other packages, default key bindings are provided as a `.example` template. To enable keyboard shortcuts, open `Preferences -> Package Settings -> MarkdownPreviewOverlay -> Key Bindings` (or copy from `Default.sublime-keymap.example` into your User keymap):
 
-- **macOS** (`Default (OSX).sublime-keymap.example`):
-  ```json
-  [
-      {
-          "keys": ["super+alt+m"],
-          "command": "markdown_preview_overlay_toggle",
-          "context": [{ "key": "selector", "operator": "equal", "operand": "text.html.markdown" }]
-      }
-  ]
-  ```
-- **Windows / Linux** (`Default (Windows/Linux).sublime-keymap.example`):
-  ```json
-  [
-      {
-          "keys": ["ctrl+alt+m"],
-          "command": "markdown_preview_overlay_toggle",
-          "context": [{ "key": "selector", "operator": "equal", "operand": "text.html.markdown" }]
-      }
-  ]
-  ```
+```json
+[
+    {
+        "keys": ["primary+alt+r"],
+        "command": "markdown_preview_overlay_toggle",
+        "context": [{ "key": "selector", "operator": "equal", "operand": "text.html.markdown" }]
+    }
+]
+```
+
+`primary+alt+r` automatically maps to `Cmd+Option+R` on macOS and `Ctrl+Alt+R` on Windows/Linux in Sublime Text.
 
 ## Development installation
 

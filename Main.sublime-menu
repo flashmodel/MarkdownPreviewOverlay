@@ -27,9 +27,9 @@
                                 "caption": "Key Bindings",
                                 "command": "edit_settings",
                                 "args": {
-                                    "base_file": "${packages}/MarkdownPreviewOverlay/Default (${platform}).sublime-keymap.example",
+                                    "base_file": "${packages}/MarkdownPreviewOverlay/Default.sublime-keymap.example",
                                     "user_file": "${packages}/User/Default (${platform}).sublime-keymap",
-                                    "default": "[\n\t{\n\t\t\"keys\": [\"super+alt+m\"],\n\t\t\"command\": \"markdown_preview_overlay_toggle\",\n\t\t\"context\": [\n\t\t\t{\n\t\t\t\t\"key\": \"selector\",\n\t\t\t\t\"operator\": \"equal\",\n\t\t\t\t\"operand\": \"text.html.markdown\"\n\t\t\t}\n\t\t]\n\t}\n]\n"
+                                    "default": "[\n\t{\n\t\t\"keys\": [\"primary+alt+r\"],\n\t\t\"command\": \"markdown_preview_overlay_toggle\",\n\t\t\"context\": [\n\t\t\t{\n\t\t\t\t\"key\": \"selector\",\n\t\t\t\t\"operator\": \"equal\",\n\t\t\t\t\"operand\": \"text.html.markdown\"\n\t\t\t}\n\t\t]\n\t}\n]\n"
                                 }
                             }
                         ]
