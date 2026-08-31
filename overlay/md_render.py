@@ -529,7 +529,7 @@ class MarkdownImageResolver:
     )
 
     _HTML_IMG_PATTERN = re.compile(
-        r'(<img\b[^>]*?\bsrc=)(?P<quote>["\'])(?P<src>[^"\'\n]+)(?P=quote)',
+        r'<img\b[^>]*>',
         re.IGNORECASE
     )
 
@@ -606,9 +606,11 @@ class MarkdownImageResolver:
             if size and size[0] > self.max_width:
                 orig_w, orig_h = size
                 scaled_h = max(1, int(orig_h * (self.max_width / orig_w)))
-                title_attr = f' title="{title}"' if title else ''
+                clean_title = title.strip('\'"()') if title else ''
+                title_attr = f' title="{html.escape(clean_title, quote=True)}"' if clean_title else ''
+                alt_attr = html.escape(alt, quote=True)
                 return (
-                    f'<img src="{resolved_uri}" alt="{alt}"{title_attr} '
+                    f'<img src="{resolved_uri}" alt="{alt_attr}"{title_attr} '
                     f'width="{self.max_width}" height="{scaled_h}" />'
                 )
 
@@ -616,17 +618,66 @@ class MarkdownImageResolver:
             return f'![{alt}]({resolved_uri} {title})'
         return f'![{alt}]({resolved_uri})'
 
+    def _append_tag_attributes(self, tag_str, attrs_str):
+        """Append extra attribute(s) to an HTML tag before its closing > or />."""
+        closing_idx = tag_str.rfind('>')
+        if closing_idx == -1:
+            return tag_str
+        if tag_str[closing_idx - 1] == '/':
+            return tag_str[:closing_idx - 1].rstrip() + f' {attrs_str} />'
+        return tag_str[:closing_idx].rstrip() + f' {attrs_str}>'
+
+    def adjust_html_image_dimensions(self, tag_str, local_path):
+        """Ensure proportional width/height attributes are injected for local HTML <img> tags."""
+        if not local_path:
+            return tag_str
+
+        size = get_image_size(local_path)
+        if not size:
+            return tag_str
+
+        orig_w, orig_h = size
+        w_m = re.search(r'\bwidth=(?P<q>["\']?)(?P<w>[0-9]+(?:\.[0-9]+)?%?)(?P=q)', tag_str, re.IGNORECASE)
+        h_m = re.search(r'\bheight=(?P<q>["\']?)(?P<h>[0-9]+(?:\.[0-9]+)?%?)(?P=q)', tag_str, re.IGNORECASE)
+
+        if w_m and not h_m:
+            w_str = w_m.group('w')
+            if w_str.endswith('%') and self.max_width:
+                pct = float(w_str[:-1]) / 100.0
+                target_w = max(1, int(self.max_width * pct))
+                target_h = max(1, int(orig_h * (target_w / orig_w)))
+                return tag_str[:w_m.start()] + f'width="{target_w}" height="{target_h}"' + tag_str[w_m.end():]
+            elif not w_str.endswith('%'):
+                try:
+                    target_w = int(float(w_str))
+                    target_h = max(1, int(orig_h * (target_w / orig_w)))
+                    return self._append_tag_attributes(tag_str, f'height="{target_h}"')
+                except Exception:
+                    pass
+        elif not w_m and not h_m and self.max_width and orig_w > self.max_width:
+            target_w = self.max_width
+            target_h = max(1, int(orig_h * (target_w / orig_w)))
+            return self._append_tag_attributes(tag_str, f'width="{target_w}" height="{target_h}"')
+
+        return tag_str
+
     def replace_html_image(self, match):
         """Regex replacement callback for HTML <img> tag syntax."""
-        prefix = match.group(1)
-        quote = match.group('quote')
-        src = match.group('src')
+        tag_str = match.group(0)
+        src_m = re.search(r'\bsrc=(?P<q>["\'])(?P<src>[^"\'\n]+)(?P=q)', tag_str, re.IGNORECASE)
+        if not src_m:
+            return tag_str
 
-        resolved_uri, _ = self.resolve_path(src)
+        src = src_m.group('src')
+        resolved_uri, local_path = self.resolve_path(src)
         if not resolved_uri:
-            return match.group(0)
+            return tag_str
 
-        return f'{prefix}{quote}{resolved_uri}{quote}'
+        # Replace relative src with absolute file:// URI
+        new_tag = tag_str[:src_m.start('src')] + resolved_uri + tag_str[src_m.end('src'):]
+
+        # Ensure aspect ratio and responsive sizing are preserved
+        return self.adjust_html_image_dimensions(new_tag, local_path)
 
     def process_segment(self, segment):
         """Process a text segment outside code blocks."""
