@@ -60,12 +60,14 @@ Access settings and key bindings via the menu: `Preferences -> Package Settings 
 
 Settings can be customized via `Preferences -> Package Settings -> MarkdownPreviewOverlay -> Settings` (or directly in `MarkdownPreviewOverlay.sublime-settings`):
 
-- `show_preview_button` (default: `true`): Controls whether the interactive `▣ Preview` button or badge is displayed at the top of the buffer in edit mode. Set to `false` for a distraction-free editing buffer when using the Command Palette or keyboard shortcuts.
-- `hide_line_numbers` (default: `true`): Automatically hides line numbers and the gutter in preview mode for a distraction-free reading experience, and restores them upon returning to edit mode.
-- `show_status_indicator` (default: `true`): Controls whether the `MarkdownOverlay` active mode indicator is displayed in the status bar during preview mode. Set to `false` for a completely distraction-free status bar.
-- `table_max_width` (default: `null`): Sets the maximum character width for tables rendered in miniHTML. When set to `null`, it dynamically fits within the viewport width.
-- `resolve_image_paths` (default: `false`): Controls whether to automatically rewrite local relative Markdown/HTML image paths to absolute `file://` URIs and adapt large images to the viewport. When `false` (default), image paths in Markdown are left as-is. Note that the package operates 100% locally and will not fetch or download remote network images (`http://`, `https://`).
-- `image_max_width` (default: `900`): Sets the maximum display width in pixels for rendered images when `resolve_image_paths` is enabled. In narrower viewports or split views, images automatically downscale to fit comfortably without overflowing. Set to `null` for pure viewport-adaptive scaling.
+| Setting | Description |
+| :--- | :--- |
+| **`show_preview_button`** | Display the interactive `▣ Preview` button at the top of the buffer in edit mode (default: `true`). |
+| **`hide_line_numbers`** | Automatically hide line numbers and the gutter in preview mode (default: `true`). |
+| **`show_status_indicator`** | Display the active mode indicator in the status bar during preview mode (default: `true`). |
+| **`table_max_width`** | Maximum character width for rendered tables; `null` auto-fits the viewport width (default: `null`). |
+| **`resolve_image_paths`** | Rewrite local relative image paths to absolute `file://` URIs for rendering (default: `false`). |
+| **`image_max_width`** | Maximum display width in pixels for rendered images when `resolve_image_paths` is enabled (default: `900`). |
 
 ### Key Bindings
 
