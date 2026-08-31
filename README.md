@@ -49,6 +49,7 @@ Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for
 - **Read-only Safety**: Preview mode makes the buffer temporarily read-only to prevent accidental edits while viewing formatted text.
 - **Buffer Integrity**: Source folding uses standard Sublime Text region folding without modifying the buffer text or polluting the undo history.
 - **Auto-Refresh**: If the document is modified or saved, the preview updates automatically with debounced re-rendering.
+- **Local Images Only**: Operates strictly offline. Only local image files on disk are rendered; remote web images (`http://`, `https://`) are not downloaded.
 
 
 ## Configuration
@@ -63,7 +64,7 @@ Settings can be customized via `Preferences -> Package Settings -> MarkdownPrevi
 - `hide_line_numbers` (default: `true`): Automatically hides line numbers and the gutter in preview mode for a distraction-free reading experience, and restores them upon returning to edit mode.
 - `show_status_indicator` (default: `true`): Controls whether the `MarkdownOverlay` active mode indicator is displayed in the status bar during preview mode. Set to `false` for a completely distraction-free status bar.
 - `table_max_width` (default: `null`): Sets the maximum character width for tables rendered in miniHTML. When set to `null`, it dynamically fits within the viewport width.
-- `resolve_image_paths` (default: `false`): Controls whether to automatically rewrite relative Markdown/HTML image paths to absolute `file://` URIs and adapt large images to the viewport. When `false` (default), image paths in Markdown are left as-is.
+- `resolve_image_paths` (default: `false`): Controls whether to automatically rewrite local relative Markdown/HTML image paths to absolute `file://` URIs and adapt large images to the viewport. When `false` (default), image paths in Markdown are left as-is. Note that the package operates 100% locally and will not fetch or download remote network images (`http://`, `https://`).
 - `image_max_width` (default: `900`): Sets the maximum display width in pixels for rendered images when `resolve_image_paths` is enabled. In narrower viewports or split views, images automatically downscale to fit comfortably without overflowing. Set to `null` for pure viewport-adaptive scaling.
 
 ### Key Bindings
