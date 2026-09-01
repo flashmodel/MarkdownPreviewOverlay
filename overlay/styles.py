@@ -31,9 +31,8 @@ a.markdown-preview-overlay-preview-icon {
     display: inline-block;
     padding: 0 0.15rem 0 0.1rem;
     margin-right: 0.1rem;
-    font-size: 1.35rem;
-    position: relative;
-    top: -0.2rem;
+    font-size: 1.15rem;
+    line-height: 1;
     text-decoration: none;
     color: var(--cyanish);
     {{'background'|css('background-color')}}
@@ -164,20 +163,22 @@ a.markdown-preview-overlay-preview-icon {
 ANNOTATION_HTML = """
 <body id="markdown-preview-overlay-control">
     <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
         a.preview-link {
             display: inline-block;
             color: var(--cyanish);
             font-weight: bold;
-            line-height: 1.4rem;
+            line-height: 1;
             text-decoration: none;
         }
         span.preview-icon {
             display: inline-block;
             margin-left: -0.1rem;
             margin-right: 0.3rem;
-            font-size: 1.2rem;
-            line-height: 1;
-            vertical-align: middle;
+            font-size: 1.1em;
         }
     </style>
     <a class="preview-link" href="overlay:preview"><span class="preview-icon">▣</span>Preview</a>
