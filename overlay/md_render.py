@@ -546,44 +546,68 @@ class MarkdownImageResolver:
             else None
         )
 
+    @staticmethod
+    def _is_windows_drive_path(path):
+        """Check if path starts with a Windows drive letter (e.g., C:\\, D:/, C:foo)."""
+        return bool(path and len(path) >= 2 and path[0].isalpha() and path[1] == ':')
+
+    @classmethod
+    def _to_file_uri(cls, abs_path):
+        """Convert local absolute path to minihtml-compatible file URI (avoids Windows 3-slash & encoding bugs)."""
+        normalized = abs_path.replace('\\', '/')
+        if cls._is_windows_drive_path(normalized):
+            return f"file://{normalized}"
+        return pathlib.Path(abs_path).as_uri()
+
     def is_url_scheme(self, src):
         """Return True if src contains a scheme like http:, data:, or res: (excluding Windows drive letters)."""
-        if not src:
-            return False
-        # Exclude Windows drive letters like C:\ or D:/
-        if (
-            len(src) >= 2
-            and src[0].isalpha()
-            and src[1] == ':'
-            and (len(src) == 2 or src[2] in ('\\', '/'))
-        ):
+        if not src or self._is_windows_drive_path(src):
             return False
         return bool(re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', src))
 
     def resolve_path(self, raw_path):
         """Resolve a single raw image path into (uri, local_abs_path)."""
-        if not self.base_dir or not raw_path or raw_path.startswith('//') or raw_path.startswith('#'):
+        if not raw_path or raw_path.startswith('//') or raw_path.startswith('#'):
             return None, None
-        if self.is_url_scheme(raw_path):
+        if raw_path.startswith(('res:', 'data:')):
             return None, None
-
-        url_parts = urllib.parse.urlsplit(raw_path)
-        path_part = url_parts.path
-        if not path_part:
+        if self.is_url_scheme(raw_path) and not raw_path.lower().startswith('file:'):
             return None, None
 
-        unquoted = urllib.parse.unquote(path_part)
-        if os.path.isabs(unquoted):
-            abs_path = os.path.normpath(unquoted)
+        query = fragment = ''
+        if raw_path.lower().startswith('file:'):
+            url_parts = urllib.parse.urlsplit(raw_path)
+            path_part = urllib.parse.unquote(url_parts.path)
+            # Remove leading slash in /C:/... on Windows
+            if path_part.startswith('/') and self._is_windows_drive_path(path_part[1:]):
+                path_part = path_part[1:]
+            abs_path = os.path.normpath(path_part)
+            query, fragment = url_parts.query, url_parts.fragment
+        elif self._is_windows_drive_path(raw_path):
+            abs_path = os.path.normpath(raw_path)
         else:
-            abs_path = os.path.normpath(os.path.join(self.base_dir, unquoted))
+            # Relative path or POSIX absolute path
+            url_parts = urllib.parse.urlsplit(raw_path)
+            path_part = url_parts.path
+            if not path_part:
+                return None, None
+
+            unquoted = urllib.parse.unquote(path_part)
+            if os.path.isabs(unquoted):
+                abs_path = os.path.normpath(unquoted)
+            elif self.base_dir:
+                # Resolve relative path about markdown directory
+                abs_path = os.path.normpath(os.path.join(self.base_dir, unquoted))
+            else:
+                return None, None
+            query, fragment = url_parts.query, url_parts.fragment
 
         try:
-            uri = pathlib.Path(abs_path).as_uri()
-            if url_parts.query:
-                uri += f'?{url_parts.query}'
-            if url_parts.fragment:
-                uri += f'#{url_parts.fragment}'
+            uri = self._to_file_uri(abs_path)
+            if query:
+                uri += f'?{query}'
+            if fragment:
+                uri += f'#{fragment}'
             return uri, abs_path
         except Exception:
             return None, None
@@ -614,9 +638,10 @@ class MarkdownImageResolver:
                     f'width="{self.max_width}" height="{scaled_h}" />'
                 )
 
+        uri_str = f'<{resolved_uri}>' if (' ' in resolved_uri or wrapped) else resolved_uri
         if title:
-            return f'![{alt}]({resolved_uri} {title})'
-        return f'![{alt}]({resolved_uri})'
+            return f'![{alt}]({uri_str} {title})'
+        return f'![{alt}]({uri_str})'
 
     def _append_tag_attributes(self, tag_str, attrs_str):
         """Append extra attribute(s) to an HTML tag before its closing > or />."""

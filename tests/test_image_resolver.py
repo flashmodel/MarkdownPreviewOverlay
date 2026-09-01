@@ -54,5 +54,40 @@ class TestImageResolver(unittest.TestCase):
         self.assertIn('width="450" height="308"', res_pct)
 
 
+    def test_special_schemes_and_file_uris(self):
+        # 1. Existing file:// URI still resolves and scales down
+        file_uri = f"file://{self.gif_path}"
+        md = f"![Local]({file_uri})"
+        res = resolve_markdown_image_paths(md, self.readme_path, max_width=800)
+        self.assertIn('<img src="file://', res)
+        self.assertIn('width="800" height="548"', res)
+
+        # 2. res: and data: schemes remain untouched
+        res_uri = "![Icon](res://Packages/Theme/icon.png)"
+        self.assertEqual(resolve_markdown_image_paths(res_uri, self.readme_path, max_width=800), res_uri)
+
+        data_uri = "![Inline](data:image/png;base64,iVBORw0KGgo=)"
+        self.assertEqual(resolve_markdown_image_paths(data_uri, self.readme_path, max_width=800), data_uri)
+
+    def test_windows_and_space_path_resolution(self):
+        from overlay.md_render import MarkdownImageResolver
+        resolver = MarkdownImageResolver(r"C:\workspace\docs\readme.md")
+
+        # Windows drive paths without file: prefix
+        uri, abs_path = resolver.resolve_path(r"C:\workspace\docs\images\pic.png")
+        self.assertEqual(abs_path.replace('\\', '/'), "C:/workspace/docs/images/pic.png")
+        self.assertEqual(uri, "file://C:/workspace/docs/images/pic.png")
+
+        # Windows file:/// URLs with 3 slashes
+        uri3, abs_path3 = resolver.resolve_path("file:///C:/workspace/docs/images/pic.png")
+        self.assertEqual(abs_path3.replace('\\', '/'), "C:/workspace/docs/images/pic.png")
+        self.assertEqual(uri3, "file://C:/workspace/docs/images/pic.png")
+
+        # Space in markdown image path formatting
+        md_space = "![Space](screenshot.gif)"
+        res_space = resolve_markdown_image_paths(md_space, self.readme_path, max_width=3000)
+        self.assertTrue(res_space.startswith("![Space]("))
+
+
 if __name__ == "__main__":
     unittest.main()
