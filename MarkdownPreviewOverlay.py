@@ -42,28 +42,41 @@ PREVIEW_MARGIN = 16
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdown", ".mkd"}
 
 
-def _is_markdown(view):
-    """Return whether a file-backed Markdown view should receive controls."""
+def _is_markdown_view(view):
+    """Return whether a view contains Markdown and can be rendered as an overlay."""
 
     if (
         view is None
         or not view.is_valid()
-        or view.is_scratch()
         or view.settings().get("is_widget", False)
     ):
-        return False
-
-    # Keep transient views such as TermMate chat panes out of the default
-    # experience. A buffer must be associated with a real file before this
-    # package exposes preview controls.
-    file_name = view.file_name()
-    if not file_name:
         return False
 
     if view.match_selector(0, "text.html.markdown"):
         return True
 
-    return os.path.splitext(file_name)[1].lower() in MARKDOWN_EXTENSIONS
+    file_name = view.file_name()
+    if file_name and os.path.splitext(file_name)[1].lower() in MARKDOWN_EXTENSIONS:
+        return True
+
+    return False
+
+
+def _can_show_preview_button(view):
+    """Return whether a Markdown view should receive an edit-mode preview button.
+
+    Keeps transient views such as TermMate chat panes or unsaved scratch buffers
+    clean. A buffer must be associated with a real file on disk and not be a
+    scratch buffer before this package exposes the inline preview button.
+    """
+    if not _is_markdown_view(view):
+        return False
+
+    file_name = view.file_name()
+    if not file_name or view.is_scratch():
+        return False
+
+    return True
 
 
 def _copy_regions(regions):
@@ -230,6 +243,8 @@ class PreviewState(object):
             return True
 
     def _should_show_button(self):
+        if not _can_show_preview_button(self.view):
+            return False
         try:
             settings = sublime.load_settings(SETTINGS_NAME)
             value = settings.get("show_preview_button")
@@ -401,7 +416,7 @@ class PreviewState(object):
     def show(self, preserve_saved_state=False):
         """Enter preview mode without changing the buffer contents."""
 
-        if self.previewing or not _is_markdown(self.view):
+        if self.previewing or not _is_markdown_view(self.view):
             return
 
         if not preserve_saved_state or not self.view.settings().has(ORIGINAL_STATE_SETTING):
@@ -458,6 +473,8 @@ class PreviewState(object):
         self.view.settings().erase(ORIGINAL_STATE_SETTING)
         self.view.erase_status(STATUS_KEY)
         self._render_button()
+        if not _can_show_preview_button(self.view):
+            _states.pop(self.view.id(), None)
 
     def refresh(self):
         """Re-read the buffer, update its fold, and rebuild the preview."""
@@ -599,9 +616,9 @@ def _update_button(view):
     if not view.is_valid():
         return
 
-    if not _is_markdown(view):
+    if not _can_show_preview_button(view):
         state = _states.pop(view.id(), None)
-        if state is not None:
+        if state is not None and not state.previewing:
             state.dispose(restore=True)
         return
 
@@ -616,7 +633,7 @@ def _sync_preview_overlay(view):
     if not view.is_valid() or view.is_loading():
         return
 
-    if not _is_markdown(view):
+    if not _is_markdown_view(view):
         state = _states.pop(view.id(), None)
         if state is not None:
             state.dispose(restore=True)
@@ -641,13 +658,12 @@ def _sync_view_mode(view):
     if not view.is_valid() or view.is_loading():
         return
 
-    if not _is_markdown(view):
+    if not _is_markdown_view(view):
         state = _states.pop(view.id(), None)
         if state is not None:
             state.dispose(restore=True)
         return
 
-    state = _state_for(view)
     is_preview_mode = bool(view.settings().get(MODE_SETTING, False))
 
     if is_preview_mode:
@@ -694,7 +710,7 @@ class MarkdownPreviewOverlayToggleCommand(sublime_plugin.TextCommand):
             state.show()
 
     def is_enabled(self):
-        return _is_markdown(self.view)
+        return _is_markdown_view(self.view)
 
 
 class MarkdownPreviewOverlayShowCommand(sublime_plugin.TextCommand):
@@ -707,7 +723,7 @@ class MarkdownPreviewOverlayShowCommand(sublime_plugin.TextCommand):
             (state is not None and state.previewing)
             or bool(self.view.settings().get(MODE_SETTING, False))
         )
-        return _is_markdown(self.view) and not is_preview
+        return _is_markdown_view(self.view) and not is_preview
 
 
 class MarkdownPreviewOverlayHideCommand(sublime_plugin.TextCommand):
@@ -720,7 +736,7 @@ class MarkdownPreviewOverlayHideCommand(sublime_plugin.TextCommand):
             (state is not None and state.previewing)
             or bool(self.view.settings().get(MODE_SETTING, False))
         )
-        return _is_markdown(self.view) and bool(is_preview)
+        return _is_markdown_view(self.view) and bool(is_preview)
 
 
 class MarkdownPreviewOverlayRefreshCommand(sublime_plugin.TextCommand):
@@ -733,7 +749,7 @@ class MarkdownPreviewOverlayRefreshCommand(sublime_plugin.TextCommand):
             (state is not None and state.previewing)
             or bool(self.view.settings().get(MODE_SETTING, False))
         )
-        return _is_markdown(self.view) and bool(is_preview)
+        return _is_markdown_view(self.view) and bool(is_preview)
 
 
 class MarkdownPreviewOverlayListener(sublime_plugin.EventListener):
@@ -774,22 +790,27 @@ class MarkdownPreviewOverlayListener(sublime_plugin.EventListener):
 def _on_settings_change():
     for window in sublime.windows():
         for view in window.views():
-            if _is_markdown(view):
-                state = _state_for(view)
-                if not state.previewing:
-                    state.render()
+            if _is_markdown_view(view):
+                state = _states.get(view.id())
+                if state is None:
+                    if _can_show_preview_button(view):
+                        state = _state_for(view)
+                        state.render()
                 else:
-                    if state._should_hide_line_numbers():
-                        view.settings().set("line_numbers", False)
-                        view.settings().set("gutter", False)
-                        view.settings().set("margin", PREVIEW_MARGIN)
+                    if not state.previewing:
+                        state.render()
                     else:
-                        view.settings().set("line_numbers", state.original_line_numbers)
-                        view.settings().set("gutter", state.original_gutter)
-                        if state.original_margin is not None:
-                            view.settings().set("margin", state.original_margin)
+                        if state._should_hide_line_numbers():
+                            view.settings().set("line_numbers", False)
+                            view.settings().set("gutter", False)
+                            view.settings().set("margin", PREVIEW_MARGIN)
                         else:
-                            view.settings().erase("margin")
+                            view.settings().set("line_numbers", state.original_line_numbers)
+                            view.settings().set("gutter", state.original_gutter)
+                            if state.original_margin is not None:
+                                view.settings().set("margin", state.original_margin)
+                            else:
+                                view.settings().erase("margin")
 
 
 def plugin_loaded():
