@@ -80,7 +80,7 @@ To enable keyboard shortcuts, open `Preferences -> Package Settings -> MarkdownP
     {
         "keys": ["primary+alt+r"],
         "command": "markdown_preview_overlay_toggle",
-        "context": [{ "key": "selector", "operator": "equal", "operand": "text.html.markdown" }]
+        "context": [{ "key": "setting.is_widget", "operand": false }]
     }
 ]
 ```
