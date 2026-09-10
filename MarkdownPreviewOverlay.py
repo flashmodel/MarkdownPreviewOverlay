@@ -40,6 +40,43 @@ SETTINGS_KEY = "markdown_preview_overlay.settings"
 PREVIEW_MARGIN = 16
 
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdown", ".mkd"}
+SUPPORTED_EXTENSIONS = MARKDOWN_EXTENSIONS | {".txt", ".text"}
+MAX_PREVIEW_BUFFER_SIZE = 1_000_000
+
+
+def _is_previewable(view):
+    """Return whether a view can be previewed as an overlay via commands."""
+
+    if (
+        view is None
+        or not view.is_valid()
+        or view.settings().get("is_widget", False)
+    ):
+        return False
+
+    return True
+
+
+def _is_supported_buffer(view):
+    """Return whether a view's buffer type can be rendered as Markdown (Markdown or Plain Text)."""
+
+    if not _is_previewable(view):
+        return False
+
+    if _is_markdown_view(view):
+        return True
+
+    if view.match_selector(0, "text.plain"):
+        return True
+
+    file_name = view.file_name()
+    if file_name and os.path.splitext(file_name)[1].lower() in SUPPORTED_EXTENSIONS:
+        return True
+
+    if not file_name and (view.match_selector(0, "text.plain") or not view.match_selector(0, "source")):
+        return True
+
+    return False
 
 
 def _is_markdown_view(view):
@@ -416,7 +453,19 @@ class PreviewState(object):
     def show(self, preserve_saved_state=False):
         """Enter preview mode without changing the buffer contents."""
 
-        if self.previewing or not _is_markdown_view(self.view):
+        if self.previewing or not _is_previewable(self.view):
+            return
+
+        if not _is_supported_buffer(self.view):
+            sublime.status_message(
+                "Markdown Overlay: only Markdown and Plain Text buffers are supported"
+            )
+            return
+
+        if self.view.size() > MAX_PREVIEW_BUFFER_SIZE:
+            sublime.status_message(
+                "Markdown Overlay: file is too large to preview safely"
+            )
             return
 
         if not preserve_saved_state or not self.view.settings().has(ORIGINAL_STATE_SETTING):
@@ -633,14 +682,15 @@ def _sync_preview_overlay(view):
     if not view.is_valid() or view.is_loading():
         return
 
-    if not _is_markdown_view(view):
+    is_preview_mode = bool(view.settings().get(MODE_SETTING, False))
+
+    if not is_preview_mode and not _is_supported_buffer(view):
         state = _states.pop(view.id(), None)
         if state is not None:
             state.dispose(restore=True)
         return
 
     state = _state_for(view)
-    is_preview_mode = bool(view.settings().get(MODE_SETTING, False))
 
     if is_preview_mode:
         if not state.previewing:
@@ -658,13 +708,13 @@ def _sync_view_mode(view):
     if not view.is_valid() or view.is_loading():
         return
 
-    if not _is_markdown_view(view):
+    is_preview_mode = bool(view.settings().get(MODE_SETTING, False))
+
+    if not is_preview_mode and not _is_supported_buffer(view):
         state = _states.pop(view.id(), None)
         if state is not None:
             state.dispose(restore=True)
         return
-
-    is_preview_mode = bool(view.settings().get(MODE_SETTING, False))
 
     if is_preview_mode:
         _sync_preview_overlay(view)
@@ -710,7 +760,7 @@ class MarkdownPreviewOverlayToggleCommand(sublime_plugin.TextCommand):
             state.show()
 
     def is_enabled(self):
-        return _is_markdown_view(self.view)
+        return _is_previewable(self.view)
 
 
 class MarkdownPreviewOverlayShowCommand(sublime_plugin.TextCommand):
@@ -723,7 +773,7 @@ class MarkdownPreviewOverlayShowCommand(sublime_plugin.TextCommand):
             (state is not None and state.previewing)
             or bool(self.view.settings().get(MODE_SETTING, False))
         )
-        return _is_markdown_view(self.view) and not is_preview
+        return _is_previewable(self.view) and not is_preview
 
 
 class MarkdownPreviewOverlayHideCommand(sublime_plugin.TextCommand):
@@ -736,7 +786,7 @@ class MarkdownPreviewOverlayHideCommand(sublime_plugin.TextCommand):
             (state is not None and state.previewing)
             or bool(self.view.settings().get(MODE_SETTING, False))
         )
-        return _is_markdown_view(self.view) and bool(is_preview)
+        return _is_previewable(self.view) and bool(is_preview)
 
 
 class MarkdownPreviewOverlayRefreshCommand(sublime_plugin.TextCommand):
@@ -749,7 +799,7 @@ class MarkdownPreviewOverlayRefreshCommand(sublime_plugin.TextCommand):
             (state is not None and state.previewing)
             or bool(self.view.settings().get(MODE_SETTING, False))
         )
-        return _is_markdown_view(self.view) and bool(is_preview)
+        return _is_previewable(self.view) and bool(is_preview)
 
 
 class MarkdownPreviewOverlayListener(sublime_plugin.EventListener):
@@ -790,7 +840,8 @@ class MarkdownPreviewOverlayListener(sublime_plugin.EventListener):
 def _on_settings_change():
     for window in sublime.windows():
         for view in window.views():
-            if _is_markdown_view(view):
+            is_preview = bool(view.settings().get(MODE_SETTING, False))
+            if _is_supported_buffer(view) or is_preview:
                 state = _states.get(view.id())
                 if state is None:
                     if _can_show_preview_button(view):
