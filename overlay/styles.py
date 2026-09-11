@@ -38,13 +38,13 @@ a.markdown-preview-overlay-preview-icon {
 }
 .markdown-preview-overlay-document {
     padding: 0.8rem 1.4rem 3rem 1.4rem;
-    line-height: 1.6;
-    font-size: 1.05rem;
+    line-height: 1.35;
+    font-size: 1rem;
     {{'background'|css('background-color')}}
 }
 .markdown-preview-overlay-document p {
-    margin: 0.8rem 0;
-    line-height: 1.6;
+    margin: 0.6rem 0;
+    line-height: 1.35;
 }
 .markdown-preview-overlay-document h1,
 .markdown-preview-overlay-document h2,
@@ -87,8 +87,8 @@ a.markdown-preview-overlay-preview-icon {
     padding-left: 1.8rem;
 }
 .markdown-preview-overlay-document li {
-    margin: 0.35rem 0;
-    line-height: 1.55;
+    margin: 0.25rem 0;
+    line-height: 1.35;
 }
 .markdown-preview-overlay-document li > p {
     margin: 0.3rem 0;

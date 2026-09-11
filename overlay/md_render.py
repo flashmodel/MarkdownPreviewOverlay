@@ -730,12 +730,12 @@ def resolve_markdown_image_paths(markdown_text, file_name, max_width=None):
 def estimate_markdown_scroll_ratio(markdown_text, target_line, wrap_width=80):
     """Estimate the vertical rendered layout ratio (0.0 to 1.0) using visual line equivalents.
 
-    Each Markdown construct is weighted by its rendered visual height in line units:
-    - Images: ~20 lines (~480px block)
-    - Headings (#, ##, ###): 1.8 to 3.0 lines (font scale + margins)
+    Each Markdown construct is weighted by its rendered visual height in body line units:
+    - Images: ~24 lines (~500px block)
+    - Headings (#, ##, ###): 2.0 to 3.8 lines (font scale + margins)
     - Prose text: wrapped visual lines (len / wrap_width)
     - Code blocks & tables: 1.0 to 1.3 lines
-    - Blank lines: 0.6 lines for first, 0.0 for consecutive (CSS margin collapse)
+    - Blank lines: 0.5 lines for first, 0.0 for consecutive (CSS margin collapse)
     """
     if not markdown_text or target_line <= 0:
         return 0.0
@@ -765,22 +765,22 @@ def estimate_markdown_scroll_ratio(markdown_text, target_line, wrap_width=80):
 
         # 2. Blank lines (HTML collapses consecutive blank lines)
         if not s:
-            weights.append(0.0 if prev_blank else 0.6)
+            weights.append(0.0 if prev_blank else 0.5)
             prev_blank = True
             continue
         prev_blank = False
 
         # 3. Block elements (images, headings, tables)
         if s.startswith("![") or "<img" in s.lower():
-            weights.append(20.0)
+            weights.append(24.0)
         elif s.startswith("# "):
-            weights.append(3.0)
+            weights.append(3.8)
         elif s.startswith("## "):
-            weights.append(2.4)
+            weights.append(2.8)
         elif s.startswith("### "):
-            weights.append(1.8)
+            weights.append(2.0)
         elif s.startswith(("#### ", "##### ", "###### ")):
-            weights.append(1.4)
+            weights.append(1.5)
         elif s.startswith("|"):
             weights.append(1.3)
         else:
