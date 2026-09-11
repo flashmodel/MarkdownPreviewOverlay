@@ -12,7 +12,6 @@ a.markdown-preview-overlay-toolbar-link {
     display: block;
     background-color: color(var(--background) blend(var(--foreground) 95%));
     border: 1px solid color(var(--foreground) alpha(0.12));
-    border-left: 4px solid var(--cyanish);
     border-radius: 4px;
     padding: 0.5rem 0.8rem;
     margin: 0.5rem 0 1rem;
