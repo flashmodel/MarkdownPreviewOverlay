@@ -4,6 +4,11 @@
     // Set to false if you prefer a clean editing buffer and use the Command Palette or shortcuts.
     "show_preview_button": true,
 
+    // Whether to synchronize the preview scroll position with your current Markdown source position.
+    // When true (default), entering preview mode automatically scrolls to the corresponding section you were editing or viewing.
+    // Set to false if you prefer the preview to always open from the very top.
+    "sync_preview_position": true,
+
     // Whether to hide line numbers and the gutter in preview mode.
     // When true (default), line numbers and gutter are hidden for a clean reading experience,
     // and automatically restored when returning to edit mode.

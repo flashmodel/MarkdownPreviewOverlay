@@ -726,3 +726,71 @@ def resolve_markdown_image_paths(markdown_text, file_name, max_width=None):
     """Resolve relative Markdown and HTML image paths to absolute file:// URLs and adapt large images."""
     return MarkdownImageResolver(file_name, max_width=max_width).resolve(markdown_text)
 
+
+def estimate_markdown_scroll_ratio(markdown_text, target_line, wrap_width=80):
+    """Estimate the vertical rendered layout ratio (0.0 to 1.0) using visual line equivalents.
+
+    Each Markdown construct is weighted by its rendered visual height in line units:
+    - Images: ~20 lines (~480px block)
+    - Headings (#, ##, ###): 1.8 to 3.0 lines (font scale + margins)
+    - Prose text: wrapped visual lines (len / wrap_width)
+    - Code blocks & tables: 1.0 to 1.3 lines
+    - Blank lines: 0.6 lines for first, 0.0 for consecutive (CSS margin collapse)
+    """
+    if not markdown_text or target_line <= 0:
+        return 0.0
+
+    lines = markdown_text.splitlines()
+    if target_line >= len(lines):
+        return 1.0
+
+    weights = []
+    in_code = False
+    prev_blank = False
+    wrap_w = float(max(20, wrap_width or 80))
+
+    for line in lines:
+        s = line.strip()
+
+        # 1. Monospace code blocks (verbatim lines, no prose wrapping)
+        if s.startswith("```") or s.startswith("~~~"):
+            in_code = not in_code
+            weights.append(1.0)
+            prev_blank = False
+            continue
+        if in_code:
+            weights.append(1.0)
+            prev_blank = False
+            continue
+
+        # 2. Blank lines (HTML collapses consecutive blank lines)
+        if not s:
+            weights.append(0.0 if prev_blank else 0.6)
+            prev_blank = True
+            continue
+        prev_blank = False
+
+        # 3. Block elements (images, headings, tables)
+        if s.startswith("![") or "<img" in s.lower():
+            weights.append(20.0)
+        elif s.startswith("# "):
+            weights.append(3.0)
+        elif s.startswith("## "):
+            weights.append(2.4)
+        elif s.startswith("### "):
+            weights.append(1.8)
+        elif s.startswith(("#### ", "##### ", "###### ")):
+            weights.append(1.4)
+        elif s.startswith("|"):
+            weights.append(1.3)
+        else:
+            # 4. Prose text wrapping
+            weights.append(max(1.0, len(s) / wrap_w))
+
+    total_weight = sum(weights)
+    if total_weight <= 0:
+        return 0.0
+
+    return min(1.0, max(0.0, float(sum(weights[:target_line])) / float(total_weight)))
+
+

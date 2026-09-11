@@ -61,6 +61,7 @@ Settings can be customized via `Preferences -> Package Settings -> MarkdownPrevi
 | Setting | Description |
 | :--- | :--- |
 | **`show_preview_button`** | Display the interactive `▣ Preview` button at the top of the buffer in edit mode (default: `true`). |
+| **`sync_preview_position`** | Synchronize preview scroll position with the current Markdown source position (default: `true`). |
 | **`hide_line_numbers`** | Automatically hide line numbers and the gutter in preview mode (default: `true`). |
 | **`show_status_indicator`** | Display the active mode indicator in the status bar during preview mode (default: `true`). |
 | **`table_max_width`** | Maximum character width for rendered tables; `null` auto-fits the viewport width (default: `null`). |

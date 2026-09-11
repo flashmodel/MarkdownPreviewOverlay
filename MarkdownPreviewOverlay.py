@@ -25,6 +25,7 @@ from .overlay.styles import (
     ANNOTATION_RESERVED_WIDTH,
 )
 from .overlay.md_render import (
+    estimate_markdown_scroll_ratio,
     render_markdown_tables_as_html,
     resolve_markdown_image_paths,
 )
@@ -328,6 +329,42 @@ class PreviewState(object):
         except Exception:
             return True
 
+    def _should_sync_preview_position(self):
+        try:
+            settings = sublime.load_settings(SETTINGS_NAME)
+            return bool(settings.get("sync_preview_position", True))
+        except Exception:
+            return True
+
+    def _get_source_position_ratio(self):
+        """Calculate the normalized scroll ratio (0.0 - 1.0) of the source view's top visible line."""
+        try:
+            top_row = self.view.rowcol(self.view.visible_region().begin())[0]
+            if top_row <= 0:
+                return 0.0
+            text = self.view.substr(sublime.Region(0, self.view.size()))
+            wrap_w = self._get_table_max_width()
+            return estimate_markdown_scroll_ratio(text, top_row, wrap_width=wrap_w)
+        except Exception:
+            return 0.0
+
+    def _apply_preview_position(self, ratio):
+        """Scroll the preview overlay so the source view's top content appears at the top of the screen."""
+        def apply_scroll():
+            if not self.view.is_valid() or not self.previewing:
+                return
+            if ratio <= 0.0:
+                self.view.set_viewport_position((0.0, 0.0), False)
+                return
+            _, layout_h = self.view.layout_extent()
+            if layout_h <= 0:
+                return
+            toolbar_offset = 42.0
+            target_y = toolbar_offset + ratio * max(0.0, layout_h - toolbar_offset)
+            self.view.set_viewport_position((0.0, target_y), False)
+
+        sublime.set_timeout(apply_scroll)
+
     def _get_table_max_width(self):
         try:
             settings = sublime.load_settings(SETTINGS_NAME)
@@ -489,6 +526,10 @@ class PreviewState(object):
             )
             return
 
+        position_ratio = 0.0
+        if not preserve_saved_state and self._should_sync_preview_position():
+            position_ratio = self._get_source_position_ratio()
+
         if not preserve_saved_state or not self.view.settings().has(ORIGINAL_STATE_SETTING):
             original_state = _capture_view_state(self.view)
             self.view.settings().set(ORIGINAL_STATE_SETTING, original_state)
@@ -524,7 +565,7 @@ class PreviewState(object):
         self.rendered_change_count = self.view.change_count()
         self.rendered_mtime = self._get_file_mtime()
         if not preserve_saved_state:
-            self.view.set_viewport_position((0.0, 0.0), False)
+            self._apply_preview_position(position_ratio)
 
     def hide(self):
         """Leave preview mode and restore the prior View presentation."""
