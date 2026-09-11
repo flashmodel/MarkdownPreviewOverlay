@@ -1,8 +1,6 @@
 # MarkdownPreviewOverlay
 
-MarkdownPreviewOverlay is an editor-native Markdown reading mode for Sublime Text.
-It leaves the original Markdown in the buffer, folds the source, and
-renders the document as a themed minihtml phantom in the same view.
+MarkdownPreviewOverlay is an editor-native Markdown reading mode for Sublime Text. It leaves the original Markdown in the buffer, folds the source, and renders the document as a themed minihtml phantom in the same view.
 
 ![MarkdownPreviewOverlay Demo](screenshot.gif)
 
@@ -49,7 +47,7 @@ Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for
 - **Read-only Safety**: Preview mode makes the buffer temporarily read-only to prevent accidental edits while viewing formatted text.
 - **Buffer Integrity**: Source folding uses standard Sublime Text region folding without modifying the buffer text or polluting the undo history.
 - **Auto-Refresh**: If the document is modified or saved, the preview updates automatically with debounced re-rendering.
-- **Local Images Only**: Only local image files are rendered; remote web images are not downloaded; resolving relative image paths is disabled by default (enable via `"resolve_image_paths": true`).
+- **Local Images Only**: Only local image files are rendered; remote web images are not downloaded; resolving local relative image paths is enabled by default (disable via `"resolve_image_paths": false`).
 
 
 ## Configuration
@@ -66,7 +64,7 @@ Settings can be customized via `Preferences -> Package Settings -> MarkdownPrevi
 | **`hide_line_numbers`** | Automatically hide line numbers and the gutter in preview mode (default: `true`). |
 | **`show_status_indicator`** | Display the active mode indicator in the status bar during preview mode (default: `true`). |
 | **`table_max_width`** | Maximum character width for rendered tables; `null` auto-fits the viewport width (default: `null`). |
-| **`resolve_image_paths`** | Rewrite local relative image paths to absolute `file://` URIs for rendering (disabled by default: `false`). Set to `true` to enable local image display. |
+| **`resolve_image_paths`** | Rewrite local relative image paths to absolute `file://` URIs for rendering (enabled by default: `true`). Set to `false` if prefer image paths to be untouched. |
 | **`image_max_width`** | Maximum display width in pixels for rendered images when `resolve_image_paths` is enabled (default: `900`). |
 
 ### Key Bindings

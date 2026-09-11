@@ -324,9 +324,9 @@ class PreviewState(object):
     def _should_resolve_image_paths(self):
         try:
             settings = sublime.load_settings(SETTINGS_NAME)
-            return bool(settings.get("resolve_image_paths", False))
+            return bool(settings.get("resolve_image_paths", True))
         except Exception:
-            return False
+            return True
 
     def _get_table_max_width(self):
         try:
