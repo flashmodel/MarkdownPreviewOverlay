@@ -44,7 +44,7 @@ def _debug_log(msg):
     """Output a diagnostic message to the Sublime Text console when verbose_logging setting is enabled."""
     try:
         if sublime.load_settings(SETTINGS_NAME).get("verbose_logging", False):
-            print(f"[MarkdownPreviewOverlay] {msg}")
+            print(f"MarkdownPreviewOverlay:: {msg}")
     except Exception:
         pass
 
@@ -580,11 +580,7 @@ class PreviewState(object):
 
         current_mtime = self._get_file_mtime()
         if current_mtime != self.rendered_mtime:
-            _debug_log(
-                f"refresh triggered by _get_file_mtime: "
-                f"view {self.view.id()} ({self.view.file_name()}), "
-                f"previous mtime={self.rendered_mtime}, current mtime={current_mtime}"
-            )
+            _debug_log(f"refresh (external change): view {self.view.id()}, mtime={current_mtime}")
             return True
 
         return False
@@ -858,17 +854,15 @@ class MarkdownPreviewOverlayViewListener(sublime_plugin.ViewEventListener):
         return True
 
     def on_reload_async(self):
-        _debug_log(f"on_reload_async fired: view {self.view.id()} ({self.view.file_name()})")
         state = _states.get(self.view.id())
         if state is not None and state.previewing:
-            _debug_log(f"on_reload_async: scheduling refresh for view {self.view.id()}")
+            _debug_log(f"refresh (reload): view {self.view.id()}")
             state.schedule_refresh()
 
     def on_revert_async(self):
-        _debug_log(f"on_revert_async fired: view {self.view.id()} ({self.view.file_name()})")
         state = _states.get(self.view.id())
         if state is not None and state.previewing:
-            _debug_log(f"on_revert_async: scheduling refresh for view {self.view.id()}")
+            _debug_log(f"refresh (revert): view {self.view.id()}")
             state.schedule_refresh()
 
     def on_activated_async(self):
