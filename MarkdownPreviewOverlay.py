@@ -39,6 +39,15 @@ SETTINGS_NAME = "MarkdownPreviewOverlay.sublime-settings"
 SETTINGS_KEY = "markdown_preview_overlay.settings"
 PREVIEW_MARGIN = 16
 
+
+def _debug_log(msg):
+    """Output a diagnostic message to the Sublime Text console when verbose_logging setting is enabled."""
+    try:
+        if sublime.load_settings(SETTINGS_NAME).get("verbose_logging", False):
+            print(f"[MarkdownPreviewOverlay] {msg}")
+    except Exception:
+        pass
+
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdown", ".mkd"}
 SUPPORTED_EXTENSIONS = MARKDOWN_EXTENSIONS | {".txt", ".text"}
 MAX_PREVIEW_BUFFER_SIZE = 1_000_000
@@ -224,10 +233,21 @@ class PreviewState(object):
         self.original_highlight_line = None
         self.original_margin = None
         self.rendered_change_count = view.change_count()
+        self.rendered_mtime = self._get_file_mtime()
         self.refresh_generation = 0
         self.control_generation = 0
         self.edit_control_mode = None
         self.refresh_lock = threading.Lock()
+
+    def _get_file_mtime(self):
+        """Return the modification time of the underlying file, or None."""
+        file_name = self.view.file_name()
+        if file_name:
+            try:
+                return os.path.getmtime(file_name)
+            except OSError:
+                pass
+        return None
 
     def _load_original_state(self, state):
         """Load original presentation and layout attributes into instance state."""
@@ -440,6 +460,7 @@ class PreviewState(object):
 
         self.phantom_set.update(phantoms)
         self.rendered_change_count = self.view.change_count()
+        self.rendered_mtime = self._get_file_mtime()
 
     def render(self):
         """Render the mode button in edit mode, or toolbar and document in preview mode."""
@@ -500,6 +521,8 @@ class PreviewState(object):
             self.view.settings().set("margin", PREVIEW_MARGIN)
         self.view.set_read_only(True)
         self._render_preview_overlay()
+        self.rendered_change_count = self.view.change_count()
+        self.rendered_mtime = self._get_file_mtime()
         if not preserve_saved_state:
             self.view.set_viewport_position((0.0, 0.0), False)
 
@@ -542,8 +565,29 @@ class PreviewState(object):
             self.view.fold(self.fold_region)
 
         self.view.set_read_only(True)
-        self.phantom_set = mdpopups.PhantomSet(self.view, PHANTOM_KEY)
         self._render_preview_overlay()
+
+    def _needs_refresh(self):
+        """Return whether preview presentation or source content is out of date."""
+        if not self.previewing or not self.view.is_valid():
+            return False
+
+        if self.view.change_count() != self.rendered_change_count:
+            return True
+
+        if self.view.size() > 0 and not self.view.folded_regions():
+            return True
+
+        current_mtime = self._get_file_mtime()
+        if current_mtime != self.rendered_mtime:
+            _debug_log(
+                f"refresh triggered by _get_file_mtime: "
+                f"view {self.view.id()} ({self.view.file_name()}), "
+                f"previous mtime={self.rendered_mtime}, current mtime={current_mtime}"
+            )
+            return True
+
+        return False
 
     def schedule_refresh(self):
         """Debounce refreshes caused by reloads or saves."""
@@ -557,6 +601,9 @@ class PreviewState(object):
                 if generation != self.refresh_generation:
                     return
             if self.previewing and self.view.is_valid():
+                if self.view.is_loading():
+                    sublime.set_timeout(refresh_if_current, 50)
+                    return
                 self.refresh()
 
         sublime.set_timeout(refresh_if_current, 100)
@@ -673,7 +720,10 @@ def _update_button(view):
 
     state = _state_for(view)
     if not state.previewing and not view.settings().get(MODE_SETTING, False):
-        state._render_button()
+        if state.edit_control_mode is None:
+            state._render_button()
+        else:
+            state.update_control_placement()
 
 
 def _sync_preview_overlay(view):
@@ -695,7 +745,7 @@ def _sync_preview_overlay(view):
     if is_preview_mode:
         if not state.previewing:
             state.show(preserve_saved_state=True)
-        else:
+        elif state._needs_refresh():
             state.schedule_refresh()
     else:
         if state.previewing:
@@ -802,21 +852,47 @@ class MarkdownPreviewOverlayRefreshCommand(sublime_plugin.TextCommand):
         return _is_previewable(self.view) and bool(is_preview)
 
 
+class MarkdownPreviewOverlayViewListener(sublime_plugin.ViewEventListener):
+    @classmethod
+    def is_applicable(cls, settings):
+        return True
+
+    def on_reload_async(self):
+        _debug_log(f"on_reload_async fired: view {self.view.id()} ({self.view.file_name()})")
+        state = _states.get(self.view.id())
+        if state is not None and state.previewing:
+            _debug_log(f"on_reload_async: scheduling refresh for view {self.view.id()}")
+            state.schedule_refresh()
+
+    def on_revert_async(self):
+        _debug_log(f"on_revert_async fired: view {self.view.id()} ({self.view.file_name()})")
+        state = _states.get(self.view.id())
+        if state is not None and state.previewing:
+            _debug_log(f"on_revert_async: scheduling refresh for view {self.view.id()}")
+            state.schedule_refresh()
+
+    def on_activated_async(self):
+        state = _states.get(self.view.id())
+        if state is not None and state.previewing and state._needs_refresh():
+            state.schedule_refresh()
+
+
 class MarkdownPreviewOverlayListener(sublime_plugin.EventListener):
+    """
+    The focus and interaction listeners force the edit view to refresh
+    preview phantom to detect external file changes
+    """
     def on_load_async(self, view):
         _sync_view_mode(view)
 
     def on_activated_async(self, view):
         _sync_view_mode(view)
 
-    def on_reload_async(self, view):
-        _sync_view_mode(view)
-
-    def on_revert_async(self, view):
-        _sync_view_mode(view)
-
     def on_post_save_async(self, view):
         _sync_view_mode(view)
+        state = _states.get(view.id())
+        if state is not None and state.previewing:
+            state.schedule_refresh()
 
     def on_modified_async(self, view):
         state = _states.get(view.id())
@@ -828,8 +904,22 @@ class MarkdownPreviewOverlayListener(sublime_plugin.EventListener):
 
     def on_selection_modified_async(self, view):
         state = _states.get(view.id())
-        if state is not None and not state.previewing:
-            sublime.set_timeout(state.update_control_placement)
+        if state is not None:
+            if state.previewing:
+                if state._needs_refresh():
+                    state.schedule_refresh()
+            else:
+                sublime.set_timeout(state.update_control_placement)
+
+    def on_hover(self, view, point, hover_zone):
+        state = _states.get(view.id())
+        if state is not None and state.previewing and state._needs_refresh():
+            state.schedule_refresh()
+
+    def on_post_text_command(self, view, command_name, args):
+        state = _states.get(view.id())
+        if state is not None and state.previewing and state._needs_refresh():
+            state.schedule_refresh()
 
     def on_close(self, view):
         state = _states.pop(view.id(), None)

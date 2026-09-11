@@ -28,5 +28,9 @@
     // Acts as an upper cap (default: 900, matching GitHub standard width).
     // In narrower viewports or split views, images automatically downscale to fit the viewport.
     // Set to null to remove the fixed cap and always adapt purely to viewport width.
-    "image_max_width": 900
+    "image_max_width": 900,
+
+    // Whether to output debug logging in the Sublime Text Console.
+    // When true, logs events such as file changes to assist troubleshooting.
+    "verbose_logging": false
 }
