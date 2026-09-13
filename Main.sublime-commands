@@ -14,5 +14,12 @@
     {
         "caption": "Markdown Overlay: Refresh",
         "command": "markdown_preview_overlay_refresh"
+    },
+    {
+        "caption": "Preferences: MarkdownPreviewOverlay Settings",
+        "command": "edit_settings",
+        "args": {
+            "base_file": "${packages}/MarkdownPreviewOverlay/MarkdownPreviewOverlay.sublime-settings"
+        }
     }
 ]
