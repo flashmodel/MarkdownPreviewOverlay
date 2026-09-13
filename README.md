@@ -48,6 +48,7 @@ Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for
 - **Buffer Integrity**: Source folding uses standard Sublime Text region folding without modifying the buffer text or polluting the undo history.
 - **Auto-Refresh**: If the document is modified or saved, the preview updates automatically with debounced re-rendering.
 - **Local Images Only**: Only local image files are rendered; remote web images are not downloaded; resolving local relative image paths is enabled by default (disable via `"resolve_image_paths": false`).
+- **Keyboard Navigation**: In preview mode, native navigation keys (Up/Down arrows, PageUp/PageDown, Home/End, Cmd+Up/Down) automatically scroll the preview without requiring any custom keybindings.
 
 
 ## Configuration
@@ -67,6 +68,7 @@ Settings can be customized via `Preferences -> Package Settings -> MarkdownPrevi
 | **`table_max_width`** | Maximum character width for rendered tables; `null` auto-fits the viewport width (default: `null`). |
 | **`resolve_image_paths`** | Rewrite local relative image paths to absolute `file://` URIs for rendering (enabled by default: `true`). Set to `false` if prefer image paths to be untouched. |
 | **`image_max_width`** | Maximum display width in pixels for rendered images when `resolve_image_paths` is enabled (default: `900`). |
+| **`keyboard_scroll_lines`** | Number of lines to scroll per arrow key press (Up/Down) in preview mode (default: `3.0`). |
 
 ### Key Bindings
 

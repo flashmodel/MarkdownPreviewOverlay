@@ -35,6 +35,10 @@
     // Set to null to remove the fixed cap and always adapt purely to viewport width.
     "image_max_width": 900,
 
+    // Number of lines to scroll per arrow key press (Up/Down) when in preview mode.
+    // Default is 3.0 lines.
+    "keyboard_scroll_lines": 3.0,
+
     // Whether to output debug logging in the Sublime Text Console.
     // When true, logs events such as file changes to assist troubleshooting.
     "verbose_logging": false

@@ -49,6 +49,18 @@ def _debug_log(msg):
     except Exception:
         pass
 
+
+def _get_keyboard_scroll_lines():
+    """Return the configured number of lines to scroll per arrow key press in preview mode."""
+    try:
+        settings = sublime.load_settings(SETTINGS_NAME)
+        value = settings.get("keyboard_scroll_lines", 3.0)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+            return float(value)
+    except Exception:
+        pass
+    return 3.0
+
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mdown", ".mkd"}
 SUPPORTED_EXTENSIONS = MARKDOWN_EXTENSIONS | {".txt", ".text"}
 MAX_PREVIEW_BUFFER_SIZE = 1_000_000
@@ -889,6 +901,30 @@ class MarkdownPreviewOverlayRefreshCommand(sublime_plugin.TextCommand):
         return _is_previewable(self.view) and bool(is_preview)
 
 
+class MarkdownPreviewOverlayScrollToCommand(sublime_plugin.TextCommand):
+    def run(self, edit, to="bof"):
+        if not self.view.is_valid():
+            return
+        if to == "bof":
+            self.view.set_viewport_position((0.0, 0.0), False)
+        elif to == "eof":
+            _, layout_h = self.view.layout_extent()
+            _, viewport_h = self.view.viewport_extent()
+            max_y = max(0.0, layout_h - viewport_h)
+            self.view.set_viewport_position((0.0, max_y), False)
+
+    def is_enabled(self):
+        return bool(self.view.settings().get(MODE_SETTING, False))
+
+
+class MarkdownPreviewOverlayNoopCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        pass
+
+    def is_enabled(self):
+        return bool(self.view.settings().get(MODE_SETTING, False))
+
+
 class MarkdownPreviewOverlayViewListener(sublime_plugin.ViewEventListener):
     @classmethod
     def is_applicable(cls, settings):
@@ -950,6 +986,44 @@ class MarkdownPreviewOverlayListener(sublime_plugin.EventListener):
         state = _states.get(view.id())
         if state is not None and state.previewing and state._needs_refresh():
             state.schedule_refresh()
+
+    def on_text_command(self, view, command_name, args):
+        if not view.is_valid() or not view.settings().get(MODE_SETTING, False):
+            return None
+
+        if command_name == "move":
+            args = args or {}
+            by = args.get("by")
+            forward = args.get("forward", True)
+
+            if by == "lines":
+                lines = _get_keyboard_scroll_lines()
+                amount = -lines if forward else lines
+                return ("scroll_lines", {"amount": amount})
+
+            if by == "pages":
+                viewport_h = view.viewport_extent()[1]
+                line_h = view.line_height()
+                page_lines = max(1.0, (viewport_h / line_h) - 2.0) if line_h > 0 else 18.0
+                amount = -page_lines if forward else page_lines
+                return ("scroll_lines", {"amount": amount})
+
+            if by == "stops":
+                amount = -8.0 if forward else 8.0
+                return ("scroll_lines", {"amount": amount})
+
+            if by in ("characters", "words", "word_ends", "subwords", "subword_ends"):
+                return ("markdown_preview_overlay_noop", {})
+
+        elif command_name == "move_to":
+            args = args or {}
+            to = args.get("to")
+            if to in ("bof", "eof"):
+                return ("markdown_preview_overlay_scroll_to", {"to": to})
+            if to in ("bol", "eol"):
+                return ("markdown_preview_overlay_noop", {})
+
+        return None
 
     def on_post_text_command(self, view, command_name, args):
         state = _states.get(view.id())
