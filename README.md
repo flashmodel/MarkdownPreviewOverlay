@@ -24,7 +24,7 @@ MarkdownPreviewOverlay provides seamless ways to enter, navigate, and exit previ
 
 ### 1. Interactive Phantom Buttons
 
-The package injects lightweight, non-intrusive interactive controls directly into the buffer (enabled by default, can be hidden via `"show_preview_button": false` in settings):
+The package injects lightweight, non-intrusive interactive controls directly into the buffer for saved files (enabled by default, can be hidden via `"show_preview_button": false` in settings):
 
 - Entering Preview **(Edit Mode)**:
   Click the **`▣ Preview`** button at the top of the file (displayed as a right-aligned annotation badge, or a compact inline `▣` icon if the line is long) to fold the source text and enter the preview overlay.
@@ -42,10 +42,13 @@ Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for
 | **`Markdown Overlay: Edit Mode`** | Exits preview mode and returns to editing the source buffer. |
 | **`Markdown Overlay: Refresh`** | Forces a re-render of the preview layout (useful after resizing the window). |
 
+> **Note for Unsaved Buffers**: To keep scratch view clean, the inline `▣ Preview` button is only displayed for saved files on disk. For unsaved or untitled buffers, enter preview mode using the **Command Palette** or a **keyboard shortcut**.
+
 ### Behavior & Document Lifecycle
 
 - **Read-only Safety**: Preview mode makes the buffer temporarily read-only to prevent accidental edits while viewing formatted text.
 - **Buffer Integrity**: Source folding uses standard Sublime Text region folding without modifying the buffer text or polluting the undo history.
+- **Unsaved Buffers & Scratch Pads**: The inline preview button is intentionally omitted on unsaved buffers or scratch pads to prevent visual clutter; use the Command Palette or a keyboard shortcut to preview them anytime.
 - **Auto-Refresh**: If the document is modified or saved, the preview updates automatically with debounced re-rendering.
 - **Local Images Only**: Only local image files are rendered; remote web images are not downloaded; resolving local relative image paths is enabled by default (disable via `"resolve_image_paths": false`).
 - **Keyboard Navigation**: In preview mode, native navigation keys (Up/Down arrows, PageUp/PageDown, Home/End, Cmd+Up/Down) automatically scroll the preview without requiring any custom keybindings.
@@ -61,7 +64,7 @@ Settings can be customized via `Preferences -> Package Settings -> MarkdownPrevi
 
 | Setting | Description |
 | :--- | :--- |
-| **`show_preview_button`** | Display the interactive `▣ Preview` button at the top of the buffer in edit mode (default: `true`). |
+| **`show_preview_button`** | Display the interactive `▣ Preview` button at the top of saved files in edit mode (default: `true`). |
 | **`sync_preview_position`** | Synchronize preview scroll position with the current Markdown source position (default: `true`). |
 | **`hide_line_numbers`** | Automatically hide line numbers and the gutter in preview mode (default: `true`). |
 | **`show_status_indicator`** | Display the active mode indicator in the status bar during preview mode (default: `true`). |
