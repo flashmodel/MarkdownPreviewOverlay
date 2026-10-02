@@ -27,7 +27,7 @@
                                 "caption": "Key Bindings",
                                 "command": "edit_settings",
                                 "args": {
-                                    "base_file": "${packages}/MarkdownPreviewOverlay/Default.sublime-keymap.example",
+                                    "base_file": "${packages}/MarkdownPreviewOverlay/Example.sublime-keymap",
                                     "user_file": "${packages}/User/Default (${platform}).sublime-keymap",
                                     "default": "[\n\t{\n\t\t\"keys\": [\"primary+alt+r\"],\n\t\t\"command\": \"markdown_preview_overlay_toggle\",\n\t\t\"context\": [\n\t\t\t{\n\t\t\t\t\"key\": \"setting.is_widget\",\n\t\t\t\t\"operand\": false\n\t\t\t}\n\t\t]\n\t}\n]\n"
                                 }

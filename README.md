@@ -75,9 +75,9 @@ Settings can be customized via `Preferences -> Package Settings -> MarkdownPrevi
 
 ### Key Bindings
 
-MarkdownPreviewOverlay does not register a shortcut to avoid collisions. Key bindings are provided as a [keymap example](https://github.com/flashmodel/MarkdownPreviewOverlay/blob/master/Default.sublime-keymap.example).
+MarkdownPreviewOverlay does not register a shortcut to avoid collisions. Key bindings are provided as a [keymap example](https://github.com/flashmodel/MarkdownPreviewOverlay/blob/master/Example.sublime-keymap).
 
-To enable keyboard shortcuts, open `Preferences -> Package Settings -> MarkdownPreviewOverlay -> Key Bindings` (or copy from [Default.sublime-keymap.example](https://github.com/flashmodel/MarkdownPreviewOverlay/blob/master/Default.sublime-keymap.example) into your User keymap):
+To enable keyboard shortcuts, open `Preferences -> Package Settings -> MarkdownPreviewOverlay -> Key Bindings` (or copy from [Example.sublime-keymap](https://github.com/flashmodel/MarkdownPreviewOverlay/blob/master/Example.sublime-keymap) into your User keymap):
 
 ```json
 [
