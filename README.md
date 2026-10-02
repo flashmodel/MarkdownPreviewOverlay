@@ -26,9 +26,9 @@ MarkdownPreviewOverlay provides seamless ways to enter, navigate, and exit previ
 
 The package injects lightweight, non-intrusive interactive controls directly into the buffer for saved files (enabled by default, can be hidden via `"show_preview_button": false` in settings):
 
-- Entering Preview **(Edit Mode)**:
+- **Preview Mode**:
   Click the **`▣ Preview`** button at the top of the file (displayed as a right-aligned annotation badge, or a compact inline `▣` icon if the line is long) to fold the source text and enter the preview overlay.
-- Leaving Preview **(Preview Mode)**:
+- **Edit Mode**:
   Click the **`✏️Edit source`** button in the top toolbar to exit preview mode. Your previous cursor selection, scroll position, original read-only status, and manual code folds are fully restored.
 
 ### 2. Command Palette
