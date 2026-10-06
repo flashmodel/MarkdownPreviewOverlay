@@ -17,6 +17,7 @@ Compared to traditional external browsers or split-pane previewers, **MarkdownPr
 - **Exact Scroll & Cursor Preservation**: Seamlessly preserves and restores your exact cursor positions, active selections, viewport scroll offset, and manual code folds when toggling modes.
 - **Lightweight & Theme-Adaptive**: Powered directly by Sublime Text’s built-in `minihtml` engine (`mdpopups`) with zero background servers, minimal memory overhead, and automatic color scheme alignment.
 - **Full Complex Markdown Support**: Seamlessly renders complex Markdown constructs, featuring a custom table engine that auto-adapts to your viewport width, along with syntax-highlighted code blocks, blockquotes, and nested lists tailored for miniHTML.
+- **Mermaid Diagrams**: When `merman-cli` is installed, fenced `mermaid` blocks automatically become PNG images. Rendering runs in the background, fits the preview width, and leaves code blocks unchanged if rendering fails. The CLI is discovered on `PATH` or in common Homebrew/Cargo install locations.
 
 > **Note**: Rendering is delegated directly to the `mdpopups` Package Control dependency without bundling a separate Markdown parser.
 
