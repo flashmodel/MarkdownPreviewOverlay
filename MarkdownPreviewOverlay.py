@@ -29,6 +29,7 @@ from .overlay.md_render import (
     render_markdown_tables_as_html,
     resolve_markdown_image_paths,
 )
+from .overlay.mermaid import find_merman_cli, mermaid_blocks, render_mermaid_blocks
 
 
 PHANTOM_KEY = "markdown_preview_overlay"
@@ -249,6 +250,7 @@ class PreviewState(object):
         self.rendered_mtime = self._get_file_mtime()
         self.refresh_generation = 0
         self.control_generation = 0
+        self.preview_generation = 0
         self.edit_control_mode = None
         self.refresh_lock = threading.Lock()
 
@@ -459,7 +461,46 @@ class PreviewState(object):
         self.rendered_change_count = self.view.change_count()
 
     def _render_preview_overlay(self):
-        """Render the preview toolbar and document markdown phantoms below the folded document."""
+        """Display the source preview and start the optional Mermaid rendering stage."""
+        if not self.view.is_valid():
+            return
+
+        self.preview_generation += 1
+        markdown = self.view.substr(sublime.Region(0, self.view.size()))
+        self._display_preview_overlay(markdown)
+        self._schedule_mermaid_render(markdown, self.preview_generation)
+
+    def _schedule_mermaid_render(self, source, generation):
+        """Render all Mermaid blocks in the background, then display the updated document."""
+        if next(mermaid_blocks(source), None) is None:
+            return
+        executable = find_merman_cli()
+        if not executable:
+            return
+
+        change_count = self.view.change_count()
+        image_width = self._get_image_max_width()
+
+        def render_diagrams():
+            rendered = render_mermaid_blocks(
+                source, executable, max_width=image_width, on_error=_debug_log,
+            )
+
+            def apply_diagrams():
+                if (self.view.is_valid() and self.previewing
+                        and generation == self.preview_generation
+                        and change_count == self.view.change_count()
+                        and rendered != source):
+                    viewport = self.view.viewport_position()
+                    self._display_preview_overlay(rendered)
+                    self.view.set_viewport_position(viewport, False)
+
+            sublime.set_timeout(apply_diagrams)
+
+        sublime.set_timeout_async(render_diagrams)
+
+    def _display_preview_overlay(self, markdown):
+        """Transform images and tables and display the toolbar and document phantoms."""
         if not self.view.is_valid():
             return
 
@@ -487,7 +528,6 @@ class PreviewState(object):
             )
         ]
 
-        markdown = self.view.substr(sublime.Region(0, self.view.size()))
         file_name = self.view.file_name()
         if file_name and self._should_resolve_image_paths():
             max_img_width = self._get_image_max_width()
@@ -593,6 +633,7 @@ class PreviewState(object):
         _restore_view_state(self.view, saved_state)
 
         self.previewing = False
+        self.preview_generation += 1
         self.fold_region = None
         self.view.settings().erase(MODE_SETTING)
         self.view.settings().erase(ORIGINAL_STATE_SETTING)
@@ -676,6 +717,7 @@ class PreviewState(object):
     def dispose(self, restore=True):
         """Remove all UI owned by this state."""
 
+        self.preview_generation += 1
         if restore and self.view.is_valid() and self.previewing:
             self.hide()
         if self.view.is_valid():
