@@ -16,6 +16,10 @@
         "command": "markdown_preview_overlay_refresh"
     },
     {
+        "caption": "Markdown Overlay: Copy Source",
+        "command": "markdown_preview_overlay_copy_source"
+    },
+    {
         "caption": "Preferences: MarkdownPreviewOverlay Settings",
         "command": "edit_settings",
         "args": {

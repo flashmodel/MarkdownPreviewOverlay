@@ -25,7 +25,9 @@ from .overlay.styles import (
     ANNOTATION_RESERVED_WIDTH,
 )
 from .overlay.md_render import (
+    COPY_HREF_PREFIX,
     estimate_markdown_scroll_ratio,
+    inject_copy_links,
     render_markdown_tables_as_html,
     resolve_markdown_image_paths,
 )
@@ -251,6 +253,7 @@ class PreviewState(object):
         self.control_generation = 0
         self.edit_control_mode = None
         self.refresh_lock = threading.Lock()
+        self.copy_texts = []
 
     def _get_file_mtime(self):
         """Return the modification time of the underlying file, or None."""
@@ -340,6 +343,22 @@ class PreviewState(object):
             return bool(settings.get("resolve_image_paths", True))
         except Exception:
             return True
+
+    def _get_copy_settings(self):
+        """Return which click-to-copy links to render in preview mode."""
+        defaults = {
+            "code_blocks": ("copy_code_blocks", True),
+            "paragraphs": ("copy_paragraphs", False),
+            "inline_code": ("copy_inline_code", True),
+        }
+        try:
+            settings = sublime.load_settings(SETTINGS_NAME)
+            return {
+                key: bool(settings.get(name, default))
+                for key, (name, default) in defaults.items()
+            }
+        except Exception:
+            return {key: default for key, (_, default) in defaults.items()}
 
     def _should_sync_preview_position(self):
         try:
@@ -492,6 +511,7 @@ class PreviewState(object):
         if file_name and self._should_resolve_image_paths():
             max_img_width = self._get_image_max_width()
             markdown = resolve_markdown_image_paths(markdown, file_name, max_width=max_img_width)
+        markdown, self.copy_texts = inject_copy_links(markdown, **self._get_copy_settings())
         max_width = self._get_table_max_width()
         markdown = render_markdown_tables_as_html(markdown, max_width)
 
@@ -691,8 +711,19 @@ class PreviewState(object):
             self.view.run_command("markdown_preview_overlay_hide")
         elif href == "overlay:refresh":
             self.view.run_command("markdown_preview_overlay_refresh")
+        elif href.startswith(COPY_HREF_PREFIX):
+            self._copy_text(href[len(COPY_HREF_PREFIX):])
         else:
             _open_link(self.view, href)
+
+    def _copy_text(self, copy_id):
+        """Copy the text registered under copy_id during the last render to the clipboard."""
+        try:
+            text = self.copy_texts[int(copy_id)]
+        except (ValueError, IndexError):
+            return
+        sublime.set_clipboard(text)
+        sublime.status_message("Markdown Overlay: copied")
 
     def update_control_placement(self):
         """Move the edit control only when its desired mode has changed."""
@@ -899,6 +930,15 @@ class MarkdownPreviewOverlayRefreshCommand(sublime_plugin.TextCommand):
             or bool(self.view.settings().get(MODE_SETTING, False))
         )
         return _is_previewable(self.view) and bool(is_preview)
+
+
+class MarkdownPreviewOverlayCopySourceCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        sublime.set_clipboard(self.view.substr(sublime.Region(0, self.view.size())))
+        sublime.status_message("Markdown Overlay: copied source")
+
+    def is_enabled(self):
+        return bool(self.view.settings().get(MODE_SETTING, False))
 
 
 class MarkdownPreviewOverlayScrollToCommand(sublime_plugin.TextCommand):

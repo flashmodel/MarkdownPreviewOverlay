@@ -51,6 +51,7 @@ Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for
 | **`Markdown Overlay: Preview Mode`** | Enters the rendered preview mode for the active Markdown document. |
 | **`Markdown Overlay: Edit Mode`** | Exits preview mode and returns to editing the source buffer. |
 | **`Markdown Overlay: Refresh`** | Forces a re-render of the preview layout (useful after resizing the window). |
+| **`Markdown Overlay: Copy Source`** | Copies the whole Markdown source to the clipboard while in preview mode. |
 
 > **Note for Unsaved Buffers**: To keep scratch view clean, the inline `▣ Preview` button is only displayed for saved files on disk. For unsaved or untitled buffers, enter preview mode using the **Command Palette** or a **keyboard shortcut**.
 
@@ -61,6 +62,7 @@ Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for
 - **Unsaved Buffers & Scratch Pads**: The inline preview button is intentionally omitted on unsaved buffers or scratch pads to prevent visual clutter; use the Command Palette or a keyboard shortcut to preview them anytime.
 - **Auto-Refresh**: If the document is modified or saved, the preview updates automatically with debounced re-rendering.
 - **Local Images Only**: Only local image files are rendered; remote web images are not downloaded; resolving local relative image paths is enabled by default (disable via `"resolve_image_paths": false`).
+- **Click-to-Copy**: Rendered text cannot be selected in miniHTML, so preview mode offers click-to-copy instead: click **`⧉ Copy`** above a code block to copy its raw code, or click an inline `code` span to copy its contents. Optional **`⧉`** links after paragraphs, list items and blockquotes copy their Markdown source (enable via `"copy_paragraphs": true`).
 - **Keyboard Navigation**: In preview mode, native navigation keys (Up/Down arrows, PageUp/PageDown, Home/End, Cmd+Up/Down) automatically scroll the preview without requiring any custom keybindings.
 
 
@@ -81,6 +83,9 @@ Settings can be customized via `Preferences -> Package Settings -> MarkdownPrevi
 | **`table_max_width`** | Maximum character width for rendered tables; `null` auto-fits the viewport width (default: `null`). |
 | **`resolve_image_paths`** | Rewrite local relative image paths to absolute `file://` URIs for rendering (enabled by default: `true`). Set to `false` if prefer image paths to be untouched. |
 | **`image_max_width`** | Maximum display width in pixels for rendered images when `resolve_image_paths` is enabled (default: `900`). |
+| **`copy_code_blocks`** | Show a `⧉ Copy` link above code blocks in preview mode that copies the raw code (default: `true`). |
+| **`copy_inline_code`** | Make inline `code` spans clickable to copy their contents in preview mode (default: `true`). |
+| **`copy_paragraphs`** | Show a `⧉` link after each paragraph, list item and blockquote that copies its Markdown source (default: `false`). |
 | **`keyboard_scroll_lines`** | Number of lines to scroll per arrow key press (Up/Down) in preview mode (default: `3.0`). |
 
 ### Key Bindings

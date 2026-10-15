@@ -465,6 +465,275 @@ def render_markdown_tables_as_html(text, max_width):
     return HtmlTableRenderer(max_width=max_width).transform_markdown(text)
 
 
+COPY_HREF_PREFIX = "overlay:copy:"
+
+
+class CopyLinkInjector:
+    """Helper to inject click-to-copy links for code blocks, paragraphs and inline code.
+
+    Copied texts are collected in ``self.texts`` and referenced by index from
+    ``overlay:copy:<index>`` hrefs so large text is never embedded in a link.
+    """
+
+    _INLINE_CODE_RE = re.compile(r'(?<![\\`])(`+)(?!`)(.+?)(?<!`)\1(?!`)')
+    _PROTECTED_RE = re.compile(
+        r'!?\[[^\]\n]*\](?:\([^)\n]*\)|\[[^\]\n]*\])|<[^>\n]+>'
+    )
+    _LIST_ITEM_RE = re.compile(r'^\s*(?:[-+*]|\d{1,9}[.)])(?:\s+|$)')
+    _BLOCKQUOTE_RE = re.compile(r'^\s{0,3}>\s?')
+    _HEADING_RE = re.compile(r'^\s{0,3}#{1,6}(?:\s|$)')
+    _HR_RE = re.compile(r'^\s{0,3}([-*_])(?:\s*\1){2,}\s*$')
+    _SETEXT_RE = re.compile(r'^\s{0,3}(?:=+|-+)\s*$')
+
+    def __init__(self, code_blocks=True, paragraphs=False, inline_code=True):
+        self.code_blocks = code_blocks
+        self.paragraphs = paragraphs
+        self.inline_code = inline_code
+        self.texts = []
+
+    def _href(self, text):
+        self.texts.append(text)
+        return f'{COPY_HREF_PREFIX}{len(self.texts) - 1}'
+
+    @staticmethod
+    def _indent_width(line):
+        expanded = line.expandtabs(4)
+        return len(expanded) - len(expanded.lstrip(' '))
+
+    @staticmethod
+    def _is_fence(stripped):
+        return stripped.startswith('```') or stripped.startswith('~~~')
+
+    @staticmethod
+    def _is_table_line(stripped):
+        return stripped.startswith('|') and '|' in stripped[1:]
+
+    @staticmethod
+    def _strip_indent(line, width):
+        """Remove up to ``width`` columns of leading whitespace from a line."""
+        removed = 0
+        i = 0
+        while i < len(line) and removed < width:
+            if line[i] == ' ':
+                removed += 1
+            elif line[i] == '\t':
+                removed += 4 - (removed % 4)
+            else:
+                break
+            i += 1
+        return line[i:]
+
+    @staticmethod
+    def _encode_inline(text):
+        """Encode code text so Markdown inline processing leaves it untouched.
+
+        mdpopups unescapes numeric entities before handing HTML to minihtml,
+        so ``&``, ``<`` and ``>`` must use the named entities it preserves.
+        """
+        named = {'&': '&amp;', '<': '&lt;', '>': '&gt;'}
+        return ''.join(
+            c if c.isalnum() or c == ' ' else named.get(c, f'&#{ord(c)};')
+            for c in text
+        )
+
+    def _is_block_start(self, line):
+        stripped = line.strip()
+        return (
+            not stripped
+            or self._is_fence(stripped)
+            or self._is_table_line(stripped)
+            or stripped.startswith('<')
+            or bool(self._HEADING_RE.match(line))
+            or bool(self._HR_RE.match(line))
+        )
+
+    def _emit_code_link(self, output, indent, code):
+        if output and output[-1].strip():
+            output.append('')
+        output.append(
+            f'{indent}<a class="markdown-preview-overlay-copy-code" '
+            f'href="{self._href(code)}">⧉ Copy</a>'
+        )
+        output.append('')
+
+    def wrap_inline_code(self, line):
+        """Wrap inline code spans of a single line in copy links."""
+        if not self.inline_code or '`' not in line:
+            return line
+        matches = list(self._INLINE_CODE_RE.finditer(line))
+        if not matches:
+            return line
+
+        def inside(pos, spans):
+            return any(start <= pos < end for start, end in spans)
+
+        code_spans = [(m.start(), m.end()) for m in matches]
+        protected = [
+            (m.start(), m.end())
+            for m in self._PROTECTED_RE.finditer(line)
+            if not inside(m.start(), code_spans)
+        ]
+
+        parts = []
+        last = 0
+        for m in matches:
+            if inside(m.start(), protected):
+                continue
+            content = m.group(2)
+            if (len(content) >= 2 and content[0] == ' '
+                    and content[-1] == ' ' and content.strip()):
+                content = content[1:-1]
+            parts.append(line[last:m.start()])
+            parts.append(
+                f'<a class="markdown-preview-overlay-copy-inline" '
+                f'href="{self._href(content)}">'
+                f'<code>{self._encode_inline(content)}</code></a>'
+            )
+            last = m.end()
+        parts.append(line[last:])
+        return ''.join(parts)
+
+    def _consume_fence(self, lines, i, output):
+        """Copy a fenced code block to output and return the index after it."""
+        line = lines[i]
+        stripped = line.strip()
+        indent = line[:len(line) - len(line.lstrip())]
+        fence_char = stripped[0]
+        fence_len = len(stripped) - len(stripped.lstrip(fence_char))
+
+        j = i + 1
+        while j < len(lines) and not lines[j].strip().startswith(fence_char * fence_len):
+            j += 1
+        body = lines[i + 1:j]
+
+        if self.code_blocks:
+            width = self._indent_width(indent)
+            code = '\n'.join(self._strip_indent(b, width) for b in body)
+            self._emit_code_link(output, indent, code)
+        output.append(line)
+        output.extend(body)
+        if j < len(lines):
+            output.append(lines[j])
+        return j + 1
+
+    def _consume_indented_code(self, lines, i, output):
+        """Copy an indented code block to output and return the index after it."""
+        j = i
+        while j < len(lines) and (not lines[j].strip() or self._indent_width(lines[j]) >= 4):
+            j += 1
+        while j > i and not lines[j - 1].strip():
+            j -= 1
+        body = lines[i:j]
+
+        if self.code_blocks:
+            code = '\n'.join(self._strip_indent(b, 4) for b in body)
+            self._emit_code_link(output, '', code)
+        output.extend(body)
+        return j
+
+    def _consume_prose(self, lines, i, output):
+        """Copy a paragraph, list item or blockquote paragraph and return the index after it."""
+        first = lines[i]
+        if self._BLOCKQUOTE_RE.match(first):
+            kind = 'quote'
+        elif self._LIST_ITEM_RE.match(first):
+            kind = 'list'
+        else:
+            kind = 'para'
+
+        j = i + 1
+        while j < len(lines):
+            line = lines[j]
+            if kind == 'para' and self._SETEXT_RE.match(line):
+                # Setext heading: emit text and underline without a copy link.
+                output.extend(self.wrap_inline_code(l) for l in lines[i:j])
+                output.append(line)
+                return j + 1
+            if self._is_block_start(line) or self._LIST_ITEM_RE.match(line):
+                break
+            if kind != 'quote' and self._BLOCKQUOTE_RE.match(line):
+                break
+            j += 1
+
+        block = lines[i:j]
+        rendered = [self.wrap_inline_code(l) for l in block]
+        if self.paragraphs:
+            if kind == 'quote':
+                source = [self._BLOCKQUOTE_RE.sub('', l, count=1).strip() for l in block]
+            elif kind == 'list':
+                source = [self._LIST_ITEM_RE.sub('', block[0], count=1).strip()]
+                source.extend(l.strip() for l in block[1:])
+            else:
+                source = [l.strip() for l in block]
+            rendered[-1] = (
+                rendered[-1].rstrip() +
+                f' <a class="markdown-preview-overlay-copy-para" '
+                f'href="{self._href(chr(10).join(source))}">⧉</a>'
+            )
+        output.extend(rendered)
+        return j
+
+    def inject(self, text):
+        """Return markdown with copy links injected; copied texts are kept in ``self.texts``."""
+        if not (self.code_blocks or self.paragraphs or self.inline_code):
+            return text
+
+        lines = text.split('\n')
+        output = []
+        in_list = False
+        prev_blank = True
+        in_html = False
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+
+            if not stripped:
+                output.append(line)
+                prev_blank = True
+                in_html = False
+                i += 1
+                continue
+
+            if in_html:
+                output.append(line)
+                i += 1
+                continue
+
+            indent = self._indent_width(line)
+            if self._LIST_ITEM_RE.match(line):
+                in_list = True
+            elif prev_blank and indent == 0:
+                in_list = False
+
+            if self._is_fence(stripped):
+                i = self._consume_fence(lines, i, output)
+            elif prev_blank and indent >= 4 and not in_list:
+                i = self._consume_indented_code(lines, i, output)
+            elif self._is_table_line(stripped):
+                output.append(line)
+                i += 1
+            elif stripped.startswith('<'):
+                output.append(line)
+                in_html = True
+                i += 1
+            elif self._HEADING_RE.match(line) or self._HR_RE.match(line):
+                output.append(self.wrap_inline_code(line))
+                i += 1
+            else:
+                i = self._consume_prose(lines, i, output)
+            prev_blank = False
+
+        return '\n'.join(output)
+
+
+def inject_copy_links(text, code_blocks=True, paragraphs=False, inline_code=True):
+    """Inject click-to-copy links; return (markdown, texts) where hrefs index into texts."""
+    injector = CopyLinkInjector(
+        code_blocks=code_blocks, paragraphs=paragraphs, inline_code=inline_code)
+    return injector.inject(text), injector.texts
+
+
 def get_image_size(file_path):
     """Read image dimensions (width, height) directly from file header without external dependencies."""
     if not file_path or not os.path.isfile(file_path):
