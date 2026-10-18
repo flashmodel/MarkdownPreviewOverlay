@@ -35,6 +35,17 @@
     // Set to null to remove the fixed cap and always adapt purely to viewport width.
     "image_max_width": 900,
 
+    // Whether to show a "⧉ Copy" link above code blocks in preview mode.
+    // Clicking it copies the raw code (without fences) to the clipboard.
+    "copy_code_blocks": true,
+
+    // Whether clicking inline `code` spans in preview mode copies their contents to the clipboard.
+    "copy_inline_code": true,
+
+    // Whether to show a "⧉" copy link at the end of each paragraph, list item and blockquote in preview mode.
+    // Clicking it copies the Markdown source of that block. Disabled by default to keep the preview clean.
+    "copy_paragraphs": false,
+
     // Number of lines to scroll per arrow key press (Up/Down) when in preview mode.
     // Default is 3.0 lines.
     "keyboard_scroll_lines": 3.0,

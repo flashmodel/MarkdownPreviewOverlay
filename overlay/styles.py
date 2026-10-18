@@ -152,6 +152,16 @@ a.markdown-preview-overlay-preview-icon {
     color: var(--accent);
     text-decoration: underline;
 }
+.markdown-preview-overlay-document a.markdown-preview-overlay-copy-code,
+.markdown-preview-overlay-document a.markdown-preview-overlay-copy-para {
+    font-size: 0.8rem;
+    text-decoration: none;
+    color: color(var(--foreground) alpha(0.5));
+}
+.markdown-preview-overlay-document a.markdown-preview-overlay-copy-inline {
+    text-decoration: none;
+    color: var(--foreground);
+}
 .markdown-preview-overlay-document img {
     display: block;
     max-width: 100%;
