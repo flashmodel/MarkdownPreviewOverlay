@@ -5,8 +5,9 @@ import unittest
 from unittest import mock
 
 from overlay.mermaid import (
+    _detect_cli_type,
     _render_png,
-    find_merman_cli,
+    find_mermaid_cli,
     mermaid_blocks,
     render_mermaid_blocks,
 )
@@ -21,7 +22,7 @@ class TestMermaidRendering(unittest.TestCase):
         _render_png.cache_clear()
 
     @mock.patch('overlay.mermaid.subprocess.run')
-    def test_render_and_cache(self, run):
+    def test_render_and_cache_merman(self, run):
         run.return_value = subprocess.CompletedProcess([], 0, self.png, b'')
         source = 'Before\n\n```mermaid\ngraph TD\n A --> B\n```\n\nAfter'
         rendered = render_mermaid_blocks(source, '/bin/merman-cli', max_width=400)
@@ -32,11 +33,32 @@ class TestMermaidRendering(unittest.TestCase):
         self.assertIn('width="400" height="200"', rendered)
         self.assertEqual(run.call_args.kwargs['input'], b'graph TD\n A --> B\n')
         self.assertEqual(run.call_args.args[0], [
-            '/bin/merman-cli', 'render', '-', '--format', 'png', '--output', '-', '--quiet',
+            '/bin/merman-cli', 'render', '-', '--format', 'png',
+            '--background', 'white', '--scale', '2',
+            '--output', '-', '--quiet',
         ])
         larger = render_mermaid_blocks(source, '/bin/merman-cli', max_width=2000)
-        self.assertIn('width="1000" height="500"', larger)
+        self.assertIn('width="500" height="250"', larger)
         run.assert_called_once()
+
+    @mock.patch('overlay.mermaid.subprocess.run')
+    def test_render_mmdc(self, run):
+        run.return_value = subprocess.CompletedProcess([], 0, self.png, b'')
+        source = '```mermaid\ngraph TD\n A --> B\n```\n'
+        rendered = render_mermaid_blocks(source, '/usr/local/bin/mmdc', max_width=500)
+        self.assertIn('data:image/png;base64,' + base64.b64encode(self.png).decode(), rendered)
+        self.assertEqual(run.call_args.args[0], [
+            '/usr/local/bin/mmdc', '-i', '-', '-o', '-', '-e', 'png',
+            '-b', 'white', '-s', '2', '-q',
+        ])
+        self.assertEqual(run.call_args.kwargs['input'], b'graph TD\n A --> B\n')
+
+    def test_detect_cli_type(self):
+        self.assertEqual(_detect_cli_type('/usr/bin/merman-cli'), 'merman-cli')
+        self.assertEqual(_detect_cli_type('C:\\Tools\\merman.exe'), 'merman-cli')
+        self.assertEqual(_detect_cli_type('/usr/local/bin/mmdc'), 'mmdc')
+        self.assertEqual(_detect_cli_type('C:\\npm\\mmdc.cmd'), 'mmdc')
+        self.assertEqual(_detect_cli_type('/opt/homebrew/bin/mermaid-cli'), 'mmdc')
 
     def test_fence_variations(self):
         text = ('~~~mermaid\ngraph LR\n A --> B\n~~~~\n'
@@ -64,7 +86,9 @@ class TestMermaidRendering(unittest.TestCase):
         for error in (OSError('missing'), subprocess.TimeoutExpired('merman-cli', 15)):
             run.side_effect = error
             errors = []
-            self.assertEqual(render_mermaid_blocks(source, 'merman-cli', on_error=errors.append), source)
+            self.assertEqual(
+                render_mermaid_blocks(source, 'merman-cli', on_error=errors.append), source
+            )
             self.assertTrue(errors)
         run.side_effect = None
         for status, output in ((1, b''), (0, b'<svg/>')):
@@ -83,14 +107,30 @@ class TestMermaidRendering(unittest.TestCase):
         self.assertIn('<img ', result)
         self.assertNotIn('~~~mermaid', result)
 
-    @mock.patch('overlay.mermaid.shutil.which', return_value=None)
-    def test_missing_cli(self, which):
-        self.assertIsNone(find_merman_cli())
+    @mock.patch('overlay.mermaid.shutil.which')
+    def test_find_mermaid_cli_priority(self, which):
+        which.side_effect = lambda cmd, path=None: (
+            '/bin/mmdc' if cmd == 'mmdc' else '/bin/merman-cli'
+        )
+        self.assertEqual(find_mermaid_cli(), ('/bin/mmdc', 'mmdc'))
 
-    @mock.patch('overlay.mermaid.shutil.which', return_value='/bin/merman-cli')
-    def test_cli_on_path(self, which):
-        self.assertEqual(find_merman_cli(), '/bin/merman-cli')
-        which.assert_called_once_with('merman-cli')
+        which.side_effect = lambda cmd, path=None: (
+            '/bin/merman-cli' if cmd == 'merman-cli' else None
+        )
+        self.assertEqual(find_mermaid_cli(), ('/bin/merman-cli', 'merman-cli'))
+
+        which.side_effect = lambda cmd, path=None: None
+        self.assertIsNone(find_mermaid_cli())
+
+    @mock.patch('overlay.mermaid.shutil.which')
+    def test_find_mermaid_cli_custom_path(self, which):
+        which.side_effect = lambda cmd, path=None: (
+            '/custom/bin/mmdc' if cmd == '/custom/bin/mmdc' else None
+        )
+        self.assertEqual(
+            find_mermaid_cli('/custom/bin/mmdc'), ('/custom/bin/mmdc', 'mmdc')
+        )
+        self.assertIsNone(find_mermaid_cli('/invalid/path/tool'))
 
 
 if __name__ == '__main__':

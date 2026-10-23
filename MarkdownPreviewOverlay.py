@@ -29,7 +29,12 @@ from .overlay.md_render import (
     render_markdown_tables_as_html,
     resolve_markdown_image_paths,
 )
-from .overlay.mermaid import find_merman_cli, mermaid_blocks, render_mermaid_blocks
+from .overlay.mermaid import (
+    find_mermaid_cli,
+    find_merman_cli,
+    mermaid_blocks,
+    render_mermaid_blocks,
+)
 
 
 PHANTOM_KEY = "markdown_preview_overlay"
@@ -350,6 +355,28 @@ class PreviewState(object):
         except Exception:
             return True
 
+    def _is_mermaid_enabled(self):
+        try:
+            settings = sublime.load_settings(SETTINGS_NAME)
+            value = settings.get("enable_mermaid")
+            if value is None:
+                return True
+            return bool(value)
+        except Exception:
+            return True
+
+    def _get_mermaid_cli(self):
+        try:
+            settings = sublime.load_settings(SETTINGS_NAME)
+            value = settings.get("mermaid_cli")
+            if value is None:
+                value = settings.get("mermaid_cli_path")
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        except Exception:
+            pass
+        return None
+
     def _get_source_position_ratio(self):
         """Calculate the normalized scroll ratio (0.0 - 1.0) of the source view's top visible line."""
         try:
@@ -472,11 +499,14 @@ class PreviewState(object):
 
     def _schedule_mermaid_render(self, source, generation):
         """Render all Mermaid blocks in the background, then display the updated document."""
+        if not self._is_mermaid_enabled():
+            return
         if next(mermaid_blocks(source), None) is None:
             return
-        executable = find_merman_cli()
-        if not executable:
+        cli_info = find_mermaid_cli(self._get_mermaid_cli())
+        if not cli_info:
             return
+        executable, cli_type = cli_info
 
         change_count = self.view.change_count()
         image_width = self._get_image_max_width()
@@ -484,6 +514,7 @@ class PreviewState(object):
         def render_diagrams():
             rendered = render_mermaid_blocks(
                 source, executable, max_width=image_width, on_error=_debug_log,
+                cli_type=cli_type,
             )
 
             def apply_diagrams():

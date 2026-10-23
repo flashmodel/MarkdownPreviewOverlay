@@ -17,7 +17,7 @@ Compared to traditional external browsers or split-pane previewers, **MarkdownPr
 - **Exact Scroll & Cursor Preservation**: Seamlessly preserves and restores your exact cursor positions, active selections, viewport scroll offset, and manual code folds when toggling modes.
 - **Lightweight & Theme-Adaptive**: Powered directly by Sublime Text’s built-in `minihtml` engine (`mdpopups`) with zero background servers, minimal memory overhead, and automatic color scheme alignment.
 - **Full Complex Markdown Support**: Seamlessly renders complex Markdown constructs, featuring a custom table engine that auto-adapts to your viewport width, along with syntax-highlighted code blocks, blockquotes, and nested lists tailored for miniHTML.
-- **Mermaid Diagrams**: When `merman-cli` is installed, fenced `mermaid` blocks automatically become PNG images. Rendering runs in the background, fits the preview width, and leaves code blocks unchanged if rendering fails. The CLI is discovered on `PATH` or in common Homebrew/Cargo install locations.
+- **Mermaid Diagrams**: When a supported Mermaid CLI (`@mermaid-js/mermaid-cli` or `merman-cli`) is installed, fenced `mermaid` blocks automatically become PNG images. Rendering runs in the background, fits the preview width, and leaves code blocks unchanged if rendering fails. The CLI is discovered on `PATH`, in common install locations, or via user settings.
 
 > **Note**: Rendering is delegated directly to the `mdpopups` Package Control dependency without bundling a separate Markdown parser.
 
@@ -82,6 +82,8 @@ Settings can be customized via `Preferences -> Package Settings -> MarkdownPrevi
 | **`table_max_width`** | Maximum character width for rendered tables; `null` auto-fits the viewport width (default: `null`). |
 | **`resolve_image_paths`** | Rewrite local relative image paths to absolute `file://` URIs for rendering (enabled by default: `true`). Set to `false` if prefer image paths to be untouched. |
 | **`image_max_width`** | Maximum display width in pixels for rendered images when `resolve_image_paths` is enabled (default: `900`). |
+| **`enable_mermaid`** | Automatically render fenced `mermaid` code blocks as inline images in preview mode (default: `true`). |
+| **`mermaid_cli`** | Custom command or path for Mermaid CLI (`mmdc` or `merman-cli`). When empty `""` (default), auto-discovers on common directories. |
 | **`keyboard_scroll_lines`** | Number of lines to scroll per arrow key press (Up/Down) in preview mode (default: `3.0`). |
 
 ### Key Bindings
