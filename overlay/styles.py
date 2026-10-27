@@ -157,6 +157,21 @@ a.markdown-preview-overlay-preview-icon {
     max-width: 100%;
     margin: 0.8rem 0;
 }
+.markdown-preview-overlay-document .math-display {
+    display: block;
+    margin: 0.8rem 0;
+}
+.markdown-preview-overlay-document .math-inline {
+    display: inline-block;
+    vertical-align: middle;
+}
+.markdown-preview-overlay-document .math-display img,
+.markdown-preview-overlay-document .math-inline img {
+    display: inline;
+    max-width: none;
+    margin: 0;
+    vertical-align: middle;
+}
 """
 
 ANNOTATION_HTML = """

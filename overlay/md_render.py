@@ -9,16 +9,37 @@ import unicodedata
 import urllib.parse
 
 
+class _RawHTML:
+    """An atomic table-cell token emitted without escaping."""
+
+    def __init__(self, html_text, columns):
+        self.html = html_text
+        self.columns = columns
+
+    def isspace(self):
+        return False
+
+
 class HtmlTableRenderer:
     """Helper to render Markdown tables as minihtml block elements with CJK support."""
 
     _HTML_LINE_BREAK_RE = re.compile(r'<br\s*/?\s*>', re.IGNORECASE)
+    _MATH_IMG_RE = re.compile(
+        r'(?:<span class="math-inline" style="display:inline">|<div class="math-display">)'
+        r'<img src="data:image/png;base64,[A-Za-z0-9+/=]+" alt="[^"]*" '
+        r'width="(?P<width>[0-9]+)" height="(?P<height>[0-9]+)" '
+        r'style="display:inline" />'
+        r'(?:</span>|</div>)'
+    )
     _EXPLICIT_LINE_BREAK = '\n'
+    _PX_PER_COLUMN = 8
 
     def __init__(self, max_width=100):
         self.max_width = max_width
 
     def char_width(self, char):
+        if isinstance(char, _RawHTML):
+            return char.columns
         if unicodedata.combining(char):
             return 0
         if unicodedata.east_asian_width(char) in ('W', 'F'):
@@ -120,6 +141,12 @@ class HtmlTableRenderer:
                 current.extend(text[i:run_end])
                 i = run_end
                 continue
+            if char == '<' and code_fence == 0:
+                tag_end = text.find('>', i)
+                if tag_end != -1:
+                    current.extend(text[i:tag_end + 1])
+                    i = tag_end + 1
+                    continue
             if char == '|' and code_fence == 0:
                 cells.append(''.join(current).strip())
                 current = []
@@ -198,6 +225,16 @@ class HtmlTableRenderer:
                 continue
 
             if text[i] == '<':
+                math_img = self._MATH_IMG_RE.match(text, i)
+                if math_img:
+                    columns = max(
+                        1,
+                        (int(math_img.group('width')) + self._PX_PER_COLUMN - 1)
+                        // self._PX_PER_COLUMN,
+                    )
+                    chars.append((_RawHTML(math_img.group(0), columns), styles))
+                    i = math_img.end()
+                    continue
                 line_break = self._HTML_LINE_BREAK_RE.match(text, i)
                 if line_break:
                     chars.append((self._EXPLICIT_LINE_BREAK, styles))
@@ -311,7 +348,9 @@ class HtmlTableRenderer:
         def flush_run():
             if not run:
                 return
-            content = html.escape(''.join(run), quote=True)
+            # Non-breaking spaces keep the character grid aligned without
+            # white-space:pre. minihtml does not paint images inside pre.
+            content = html.escape(''.join(run), quote=True).replace(' ', '\xa0')
             if 'code' in current_styles:
                 content = f"<code>{content}</code>"
             if 'strong' in current_styles:
@@ -320,6 +359,11 @@ class HtmlTableRenderer:
             run.clear()
 
         for c, styles in chars:
+            if isinstance(c, _RawHTML):
+                flush_run()
+                parts.append(c.html)
+                current_styles = styles
+                continue
             if styles != current_styles:
                 flush_run()
                 current_styles = styles
@@ -370,7 +414,7 @@ class HtmlTableRenderer:
                     padded = self._pad_styled_line(
                         chars, col_widths[j], alignments[j])
                     pieces.append(
-                        ' ' + self._render_inline_html(padded) + ' ')
+                        '\xa0' + self._render_inline_html(padded) + '\xa0')
                 visual_lines.append(
                     '<div class="visual-row">' + ''.join(pieces) + '</div>')
 
@@ -387,7 +431,7 @@ class HtmlTableRenderer:
         return (
             '<style>'
             '.table{color:var(--foreground);font-family:monospace;'
-            'font-size:1rem;line-height:1.25rem;white-space:pre;'
+            'font-size:1rem;line-height:1.25rem;white-space:normal;'
             'display:block;margin:0.8rem 0;'
             'border:1px solid color(var(--foreground) alpha(0.35));'
             'border-radius:2px}'
@@ -402,6 +446,9 @@ class HtmlTableRenderer:
             '.table code{font-family:monospace;color:var(--cyanish);'
             'background-color:color(var(--foreground) alpha(0.08))}'
             '.table strong{font-weight:bold}'
+            '.table .math-inline{display:inline}'
+            '.table .math-inline img,.table .math-display img{'
+            'display:inline;vertical-align:middle;margin:0;max-width:none}'
             '</style><div class="table">' + ''.join(rendered) + '</div>'
         )
 

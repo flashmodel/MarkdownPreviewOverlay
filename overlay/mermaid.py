@@ -128,9 +128,12 @@ def _render_png(executable, source, cli_type=None, scale=_DPI_SCALE):
 
 def render_mermaid_blocks(
     text, executable, max_width=None, on_error=None, cli_type=None, scale=_DPI_SCALE,
-    deltas=None
+    deltas=None, spans=None,
 ):
-    """Replace Mermaid fences with embedded PNGs; preserve failed blocks verbatim."""
+    """Replace Mermaid fences with embedded PNGs; preserve failed blocks verbatim.
+
+    ``spans`` receives ``(start, end, replacement)`` offsets into ``text``.
+    """
     output = []
     previous = 0
     if cli_type is None:
@@ -153,9 +156,15 @@ def render_mermaid_blocks(
                 '<img src="data:image/png;base64,{}" alt="Mermaid diagram" '
                 'width="{}" height="{}" />'
             ).format(html.escape(encoded, quote=True), display_width, display_height)
-            output.append('\n' + image + '\n\n')
+            replacement = '\n' + image + '\n\n'
+            output.append(replacement)
+            if spans is not None:
+                spans.append((start, end, replacement))
         except (OSError, subprocess.SubprocessError, ValueError) as error:
-            output.append(text[start:end])
+            original = text[start:end]
+            output.append(original)
+            if spans is not None:
+                spans.append((start, end, original))
             if on_error:
                 on_error(str(error))
         previous = end

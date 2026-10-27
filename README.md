@@ -19,6 +19,7 @@ Compared to traditional external browsers or split-pane previewers, **MarkdownPr
 - **Lightweight**: Powered directly by Sublime Text’s built-in `minihtml` engine (`mdpopups`) with zero background servers, minimal memory overhead, and automatic color scheme alignment.
 - **Full Complex Markdown Support**: Seamlessly renders complex Markdown constructs, featuring a custom table engine that auto-adapts to your viewport width, along with syntax-highlighted code blocks, blockquotes, and nested lists tailored for miniHTML.
 - **Mermaid Diagrams**: Asynchronously renders fenced `mermaid` blocks into responsive inline diagrams via an auto-detected CLI (`@mermaid-js/mermaid-cli` or `merman-cli`), with graceful code fallback.
+- **Math Expressions**: Renders inline `$...$` and display `$$...$$` TeX (including AMS `aligned` and `\underbrace`) to theme-colored images. Requires a local [Node.js](https://nodejs.org/) install of `mathjax` and `@resvg/resvg-js`; without them the formula stays as source.
 
 > **Note**: Rendering is delegated directly to the `mdpopups` Package Control dependency without bundling a separate Markdown parser.
 
@@ -85,7 +86,18 @@ Settings can be customized via `Preferences -> Package Settings -> MarkdownPrevi
 | **`image_max_width`** | Maximum display width in pixels for rendered images when `resolve_image_paths` is enabled (default: `900`). |
 | **`enable_mermaid`** | Automatically render fenced `mermaid` code blocks as inline images in preview mode (default: `true`). |
 | **`mermaid_cli`** | Custom command or path for Mermaid CLI (`mmdc` or `merman-cli`). When empty `""` (default), auto-discovers on common directories. |
+| **`enable_math`** | Render `$...$` and `$$...$$` math as images in preview mode (default: `true`). When the Node toolchain is missing, formulas stay as fenced source. |
+| **`math_node`** | Node.js executable used to typeset math. When empty `""` (default), auto-discovers `node` on PATH and in common directories. |
+| **`math_modules`** | `node_modules` directory (or a folder that contains one) with `mathjax` and `@resvg/resvg-js`. When empty `""` (default), tries `npm root -g` and common install locations. |
 | **`keyboard_scroll_lines`** | Number of lines to scroll per arrow key press (Up/Down) in preview mode (default: `3.0`). |
+
+Math rendering shells out to Node and does not download anything during preview. Install the two packages once (Node 18 or newer), globally or in any directory:
+
+```bash
+npm install mathjax @resvg/resvg-js
+```
+
+A global install is picked up from `npm root -g`. Otherwise set `math_modules` to that `node_modules` directory. Open the preview again after installing. Characters in `\text{}` that the math font does not cover, including Croatian letters such as `š` and `ć`, are drawn with a system font.
 
 ### Key Bindings
 
