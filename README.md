@@ -16,8 +16,8 @@ Compared to traditional external browsers or split-pane previewers, **MarkdownPr
 - **Zero Context-Switching**: Read and edit in the exact same view—never leave Sublime Text or juggle external browser windows.
 - **No Split-Pane Clutter**: Maximizes your entire editor width without dividing the screen into cramped columns or causing premature line wrapping.
 - **Position Sync & State Preservation**: Automatically aligns the preview with your current editing position, and seamlessly restores your exact cursors, selections, viewport offset, and Vim (Vintage) mode when toggling.
-- **Lightweight**: Powered directly by Sublime Text’s built-in `minihtml` engine (`mdpopups`) with zero background servers, minimal memory overhead, and automatic color scheme alignment.
-- **Full Complex Markdown Support**: Seamlessly renders complex Markdown constructs, featuring a custom table engine that auto-adapts to your viewport width, along with syntax-highlighted code blocks, blockquotes, and nested lists tailored for miniHTML.
+- **Lightweight**: Powered directly by Sublime Text’s built-in `minihtml` engine (`mdpopups`), fully offline with zero background servers, minimal memory overhead, and automatic color scheme alignment.
+- **Rich Markdown & Responsive Table**: Renders syntax-highlighted code blocks, blockquotes, nested lists, and viewport-adaptive tables tailored specifically for `minihtml`.
 - **Mermaid Diagrams**: Asynchronously renders fenced `mermaid` blocks into responsive inline diagrams via an auto-detected CLI (`@mermaid-js/mermaid-cli` or `merman-cli`), with graceful code fallback.
 
 > **Note**: Rendering is delegated directly to the `mdpopups` Package Control dependency without bundling a separate Markdown parser.
@@ -34,7 +34,7 @@ The easiest way to install is via [Package Control](https://packagecontrol.io/pa
 
 MarkdownPreviewOverlay provides seamless ways to enter, navigate, and exit preview mode without leaving your active editor view.
 
-### 1. Interactive Phantom Buttons
+### 1. Interactive Phantom Button
 
 The package injects lightweight, non-intrusive interactive controls directly into the buffer for saved files (enabled by default, can be hidden via `"show_preview_button": false` in settings):
 
@@ -54,16 +54,26 @@ Press `Command+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux) and search for
 | **`Markdown Overlay: Edit Mode`** | Exits preview mode and returns to editing the source buffer. |
 | **`Markdown Overlay: Refresh`** | Forces a re-render of the preview layout (useful after resizing the window). |
 
-> **Note for Unsaved Buffers**: To keep scratch view clean, the inline `▣ Preview` button is only displayed for saved files on disk. For unsaved or untitled buffers, enter preview mode using the **Command Palette** or a **keyboard shortcut**.
+> **Note for Unsaved Buffer**: To keep scratch view clean, the inline `▣ Preview` button is only displayed for saved files on disk. For unsaved or untitled buffers, enter preview mode using the **Command Palette** or a **keyboard shortcut**.
 
-### Behavior & Document Lifecycle
+### Document Behaviors
 
-- **Read-only Safety**: Preview mode makes the buffer temporarily read-only to prevent accidental edits while viewing formatted text.
-- **Buffer Integrity**: Source folding uses standard Sublime Text region folding without modifying the buffer text or polluting the undo history.
-- **Unsaved Buffers & Scratch Pads**: The inline preview button is intentionally omitted on unsaved buffers or scratch pads to prevent visual clutter; use the Command Palette or a keyboard shortcut to preview them anytime.
+- **Unsaved Buffer**: Phantom buttons are hidden on untitled/scratch views to prevent visual clutter; use the Command Palette or keyboard shortcut to switch preview mode.
 - **Auto-Refresh**: If the document is modified or saved, the preview updates automatically with debounced re-rendering.
 - **Local Images Only**: Only local image files are rendered; remote web images are not downloaded; resolving local relative image paths is enabled by default (disable via `"resolve_image_paths": false`).
-- **Keyboard Navigation**: In preview mode, native navigation keys (Up/Down arrows, PageUp/PageDown, Home/End, Cmd+Up/Down) automatically scroll the preview without requiring any custom keybindings.
+- **Keyboard Navigation**: In preview mode, native navigation keys (Up/Down, PageUp/PageDown, Home/End) as well as Vim mode (`j`/`k`, `Ctrl+d`/`Ctrl+u`, `gg`/`G`) automatically scroll the preview without any custom keybindings.
+
+
+## Markdown Extensions
+
+### Mermaid Diagrams
+
+To render fenced ````mermaid```` diagrams, install either of the supported CLI tools:
+
+- [**@mermaid-js/mermaid-cli**](https://github.com/mermaid-js/mermaid-cli) (executable: `mmdc`)
+- [**merman-cli**](https://github.com/erikbrannstrom/merman) (executable: `merman-cli`)
+
+The plugin automatically detects whichever tool is installed on your `PATH`.
 
 
 ## Configuration
