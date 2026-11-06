@@ -47,6 +47,20 @@
     // name ("mmdc") if your CLI is in a custom location or to force a specific executable.
     "mermaid_cli": "",
 
+    // Whether to render $...$ and $$...$$ math as images in preview mode.
+    // When true (default), formulas are typeset with a local Node install of mathjax
+    // and @resvg/resvg-js. Set to false to keep the TeX source in the preview.
+    "enable_math": true,
+
+    // Path to the Node.js executable used for math rendering.
+    // Leave empty ("") to auto-discover node on PATH and in common directories.
+    "math_node": "",
+
+    // Directory that contains mathjax and @resvg/resvg-js.
+    // Leave empty ("") to try npm's global node_modules and common install locations.
+    // Set this to a node_modules directory, or to a folder that contains one.
+    "math_modules": "",
+
     // Number of lines to scroll per arrow key press (Up/Down) when in preview mode.
     // Default is 3.0 lines.
     "keyboard_scroll_lines": 3.0,

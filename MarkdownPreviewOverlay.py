@@ -30,6 +30,13 @@ from .overlay.md_render import (
     resolve_markdown_image_paths,
 )
 from .overlay.ext_vintage import handle_vintage_command
+from .overlay.math import (
+    apply_replacements,
+    find_math_runtime,
+    has_math,
+    protect_math,
+    render_math_blocks,
+)
 from .overlay.mermaid import (
     find_mermaid_cli,
     mermaid_blocks,
@@ -55,6 +62,59 @@ def _debug_log(msg):
             print(f"MarkdownPreviewOverlay:: {msg}")
     except Exception:
         pass
+
+
+_math_toolchain_warned = False
+
+
+def _warn_missing_math_toolchain():
+    """Tell the user once per session that math images need a local Node install."""
+    global _math_toolchain_warned
+    if _math_toolchain_warned:
+        return
+    _math_toolchain_warned = True
+    try:
+        sublime.status_message(
+            "Markdown Overlay: math preview needs Node, mathjax, and @resvg/resvg-js"
+        )
+    except Exception:
+        pass
+
+
+def _hex_color(value):
+    """Return #RRGGBB when value is a hex color, otherwise None."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if len(text) == 7 and text[0] == "#" and all(ch in "0123456789abcdefABCDEF" for ch in text[1:]):
+        return text
+    if len(text) == 9 and text[0] == "#" and all(ch in "0123456789abcdefABCDEF" for ch in text[1:]):
+        return text[:7]
+    if len(text) == 4 and text[0] == "#" and all(ch in "0123456789abcdefABCDEF" for ch in text[1:]):
+        return "#" + "".join(ch * 2 for ch in text[1:])
+    return None
+
+
+def _foreground_color(view):
+    """Best-effort editor foreground, used to color rasterized math."""
+    getter = getattr(view, "style", None)
+    if callable(getter):
+        try:
+            style = getter()
+            foreground = style.get("foreground") if hasattr(style, "get") else None
+            color = _hex_color(foreground)
+            if color:
+                return color
+        except Exception:
+            pass
+    try:
+        info = sublime.ui_info()
+        theme = info.get("theme") if hasattr(info, "get") else None
+        if theme and theme.get("style") == "dark":
+            return "#e6e6e6"
+    except Exception:
+        pass
+    return "#1e1e1e"
 
 
 def _get_keyboard_scroll_lines():
@@ -387,6 +447,26 @@ class PreviewState(object):
             pass
         return None
 
+    def _is_math_enabled(self):
+        try:
+            settings = sublime.load_settings(SETTINGS_NAME)
+            value = settings.get("enable_math")
+            if value is None:
+                return True
+            return bool(value)
+        except Exception:
+            return True
+
+    def _get_math_setting(self, name):
+        try:
+            settings = sublime.load_settings(SETTINGS_NAME)
+            value = settings.get(name)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        except Exception:
+            pass
+        return None
+
     def _get_source_top_row(self):
         """Return the source view's top visible line index, or 0."""
         try:
@@ -506,37 +586,68 @@ class PreviewState(object):
         self.rendered_change_count = self.view.change_count()
 
     def _render_preview_overlay(self, initial_top_row=None):
-        """Display the source preview and start the optional Mermaid rendering stage."""
+        """Display the source preview and start Mermaid and math rendering."""
         if not self.view.is_valid():
             return
 
         self.preview_generation += 1
         markdown = self.view.substr(sublime.Region(0, self.view.size()))
-        self._display_preview_overlay(markdown)
+        display = markdown
+        if self._is_math_enabled() and has_math(markdown):
+            display = protect_math(markdown)
+        self._display_preview_overlay(display)
         self._schedule_mermaid_render(
             markdown, self.preview_generation, initial_top_row=initial_top_row
         )
 
     def _schedule_mermaid_render(self, source, generation, initial_top_row=None):
-        """Render all Mermaid blocks in the background, then display the updated document."""
-        if not self._is_mermaid_enabled():
+        """Render Mermaid and math in the background, then display one update.
+
+        Math is shielded as fenced source on the first paint. This pass replaces
+        those formulas with images when Node, MathJax, and resvg are available.
+        """
+        mermaid_cli = None
+        if (self._is_mermaid_enabled()
+                and next(mermaid_blocks(source), None) is not None):
+            mermaid_cli = find_mermaid_cli(self._get_mermaid_cli())
+        wants_math = self._is_math_enabled() and has_math(source)
+        if not mermaid_cli and not wants_math:
             return
-        if next(mermaid_blocks(source), None) is None:
-            return
-        cli_info = find_mermaid_cli(self._get_mermaid_cli())
-        if not cli_info:
-            return
-        executable, cli_type = cli_info
 
         change_count = self.view.change_count()
         image_width = self._get_image_max_width()
+        color = _foreground_color(self.view)
+        node_setting = self._get_math_setting("math_node")
+        modules_setting = self._get_math_setting("math_modules")
 
         def render_diagrams():
             deltas = []
-            rendered = render_mermaid_blocks(
-                source, executable, max_width=image_width, on_error=_debug_log,
-                cli_type=cli_type, deltas=deltas,
-            )
+            spans = []
+            if mermaid_cli:
+                executable, cli_type = mermaid_cli
+                render_mermaid_blocks(
+                    source, executable, max_width=image_width, on_error=_debug_log,
+                    cli_type=cli_type, deltas=deltas, spans=spans,
+                )
+
+            math_runtime = None
+            if wants_math:
+                math_runtime = find_math_runtime(node_setting, modules_setting)
+                if math_runtime:
+                    node, modules = math_runtime
+                    render_math_blocks(
+                        source, node, modules, color=color, max_width=image_width,
+                        on_error=_debug_log, deltas=deltas, spans=spans,
+                    )
+                else:
+                    sublime.set_timeout(_warn_missing_math_toolchain, 0)
+
+            if not mermaid_cli and not math_runtime:
+                return
+
+            rendered = apply_replacements(source, spans)
+            if wants_math and not math_runtime:
+                rendered = protect_math(rendered)
 
             def apply_diagrams():
                 if (self.view.is_valid() and self.previewing
