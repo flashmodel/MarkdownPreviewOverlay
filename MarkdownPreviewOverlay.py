@@ -594,10 +594,10 @@ class PreviewState(object):
         anchor = self.view.size()
         toolbar = (
             '<a class="markdown-preview-overlay-toolbar-link" '
-            'href="overlay:edit" title="Edit source">'
+            'href="overlay:edit" title="Edit Source">'
             '<div class="markdown-preview-overlay-toolbar">'
             '<span class="markdown-preview-overlay-arrow">◀</span>'
-            '<span class="markdown-preview-overlay-label">✏️Edit source</span>'
+            '<span class="markdown-preview-overlay-label">✏️ Edit Source</span>'
             '</div>'
             '</a>'
         )

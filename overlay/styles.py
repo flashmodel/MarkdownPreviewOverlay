@@ -10,18 +10,19 @@ a.markdown-preview-overlay-toolbar-link {
 }
 .markdown-preview-overlay-toolbar {
     display: block;
-    background-color: color(var(--background) blend(var(--foreground) 95%));
-    border: 1px solid color(var(--foreground) alpha(0.12));
+    background-color: color(var(--background) blend(var(--foreground) 88%));
+    border: 1px solid color(var(--foreground) alpha(0.25));
     border-radius: 4px;
     padding: 0.5rem 0.8rem;
     margin: 0.5rem 0 1rem;
-    color: var(--cyanish);
+    color: var(--foreground);
     font-weight: bold;
 }
 span.markdown-preview-overlay-arrow {
     display: inline-block;
     margin-left: 0.2rem;
     margin-right: 1.5rem;
+    color: var(--accent);
 }
 span.markdown-preview-overlay-label {
     display: inline-block;
