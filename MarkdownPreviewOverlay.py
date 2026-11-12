@@ -31,6 +31,7 @@ from .overlay.md_render import (
     resolve_markdown_image_paths,
 )
 from .overlay.ext_vintage import handle_vintage_command
+from .overlay.inline_math import render_inline_math
 from .overlay.mermaid import (
     find_mermaid_cli,
     mermaid_blocks,
@@ -621,6 +622,7 @@ class PreviewState(object):
         max_width = self._get_table_max_width()
         markdown = render_markdown_tables_as_html(markdown, max_width)
         markdown = normalize_markdown_list_indentation(markdown)
+        markdown = render_inline_math(markdown)
 
         phantoms.append(
             mdpopups.Phantom(

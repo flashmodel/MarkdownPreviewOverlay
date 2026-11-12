@@ -158,6 +158,19 @@ a.markdown-preview-overlay-preview-icon {
     max-width: 100%;
     margin: 0.8rem 0;
 }
+.markdown-preview-overlay-document .markdown-preview-overlay-math {
+    padding: 0 0.15rem;
+}
+.markdown-preview-overlay-document sup {
+    font-size: 0.8em;
+    vertical-align: super;
+    line-height: 0;
+}
+.markdown-preview-overlay-document sub {
+    font-size: 0.8em;
+    vertical-align: sub;
+    line-height: 0;
+}
 """
 
 ANNOTATION_HTML = """
