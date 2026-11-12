@@ -26,6 +26,7 @@ from .overlay.styles import (
 )
 from .overlay.md_render import (
     estimate_markdown_scroll_ratio,
+    normalize_markdown_list_indentation,
     render_markdown_tables_as_html,
     resolve_markdown_image_paths,
 )
@@ -619,6 +620,7 @@ class PreviewState(object):
             markdown = resolve_markdown_image_paths(markdown, file_name, max_width=max_img_width)
         max_width = self._get_table_max_width()
         markdown = render_markdown_tables_as_html(markdown, max_width)
+        markdown = normalize_markdown_list_indentation(markdown)
 
         phantoms.append(
             mdpopups.Phantom(

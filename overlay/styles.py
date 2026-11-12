@@ -85,7 +85,7 @@ a.markdown-preview-overlay-preview-icon {
 .markdown-preview-overlay-document ul,
 .markdown-preview-overlay-document ol {
     margin: 0.6rem 0;
-    padding-left: 1.8rem;
+    padding-left: 1.2rem;
 }
 .markdown-preview-overlay-document li {
     margin: 0.25rem 0;

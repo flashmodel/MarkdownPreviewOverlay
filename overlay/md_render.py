@@ -794,3 +794,104 @@ def estimate_markdown_scroll_ratio(markdown_text, target_line, wrap_width=80):
     return min(1.0, max(0.0, float(sum(weights[:target_line])) / float(total_weight)))
 
 
+_LIST_ITEM_RE = re.compile(r'^(\s*)([-*+]|\d+[.)])(\s+.*)$')
+
+
+def normalize_markdown_list_indentation(text):
+    """Normalize 2-space or irregular list indentation to standard 4-space indentation.
+
+    This ensures Python-Markdown (used by mdpopups) correctly recognizes nested sub-lists
+    written using modern 2-space or 3-space indentation conventions.
+    Leaves fenced code blocks, horizontal rules, and non-list content untouched.
+    """
+    if not text:
+        return text
+
+    lines = text.split('\n')
+    new_lines = []
+    in_fence = False
+    fence_char = None
+    indent_stack = []
+    consecutive_blanks = 0
+
+    for line in lines:
+        stripped = line.strip()
+
+        # 1. Handle fenced code blocks with fast string prefix checks
+        if stripped.startswith(('```', '~~~')):
+            char = stripped[0]
+            if not in_fence:
+                in_fence = True
+                fence_char = char
+                if line.startswith(char * 3):  # 0-indent fence terminates list
+                    indent_stack.clear()
+            elif char == fence_char:
+                in_fence = False
+            new_lines.append(line)
+            consecutive_blanks = 0
+            continue
+
+        if in_fence:
+            new_lines.append(line)
+            consecutive_blanks = 0
+            continue
+
+        # 2. Blank lines (consecutive blank lines terminate lists in Markdown)
+        if not stripped:
+            consecutive_blanks += 1
+            if consecutive_blanks >= 2:
+                indent_stack.clear()
+            new_lines.append(line)
+            continue
+        consecutive_blanks = 0
+
+        # 3. Horizontal rules (e.g. ---, - - -, ***)
+        clean = stripped.replace(' ', '')
+        if len(clean) >= 3 and set(clean) in ({'-'}, {'*'}, {'_'}):
+            indent_stack.clear()
+            new_lines.append(line)
+            continue
+
+        # 4. Check list item
+        m = _LIST_ITEM_RE.match(line)
+        if m:
+            raw_spaces, marker, rest = m.groups()
+            raw_len = len(raw_spaces.expandtabs(4))
+
+            if not indent_stack:
+                indent_stack.append((raw_len, 0))
+                norm_len = 0
+            else:
+                if raw_len - indent_stack[-1][0] >= 2:
+                    norm_len = len(indent_stack) * 4
+                    indent_stack.append((raw_len, norm_len))
+                else:
+                    while indent_stack and indent_stack[-1][0] > raw_len:
+                        indent_stack.pop()
+                    if indent_stack and indent_stack[-1][0] == raw_len:
+                        norm_len = indent_stack[-1][1]
+                    else:
+                        if not indent_stack:
+                            indent_stack.append((raw_len, 0))
+                            norm_len = 0
+                        else:
+                            norm_len = indent_stack[-1][1]
+
+            new_lines.append((' ' * norm_len) + marker + rest)
+        else:
+            # 5. Non-list item
+            raw_indent = len(line) - len(line.lstrip())
+            if indent_stack and raw_indent > 0:
+                while indent_stack and indent_stack[-1][0] > raw_indent:
+                    indent_stack.pop()
+                if indent_stack:
+                    diff = indent_stack[-1][1] - indent_stack[-1][0]
+                    new_indent = max(0, raw_indent + diff)
+                    new_lines.append((' ' * new_indent) + line.lstrip())
+                else:
+                    new_lines.append(line)
+            else:
+                indent_stack.clear()
+                new_lines.append(line)
+
+    return '\n'.join(new_lines)
