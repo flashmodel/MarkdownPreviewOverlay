@@ -8,6 +8,8 @@ import struct
 import unicodedata
 import urllib.parse
 
+from .inline_math import render_inline_math
+
 
 class HtmlTableRenderer:
     """Helper to render Markdown tables as minihtml block elements with CJK support."""
@@ -171,6 +173,10 @@ class HtmlTableRenderer:
             return None
         while len(alignments) < max_cols:
             alignments.append(None)
+        for i, row in enumerate(rows):
+            if i == separator_idx:
+                continue
+            rows[i] = [render_inline_math(cell, html_output=False) for cell in row]
         return rows, separator_idx, alignments
 
     def _find_closing_marker(self, text, marker, start):
