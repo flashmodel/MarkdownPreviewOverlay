@@ -18,6 +18,7 @@ Compared to traditional external browsers or split-pane previewers, **MarkdownPr
 - **Position Sync & State Preservation**: Automatically aligns the preview with your current editing position, and seamlessly restores your exact cursors, selections, viewport offset, and Vim (Vintage) mode when toggling.
 - **Lightweight**: Powered directly by Sublime Text’s built-in `minihtml` engine (`mdpopups`), fully offline with zero background servers, minimal memory overhead, and automatic color scheme alignment.
 - **Rich Markdown & Responsive Table**: Renders syntax-highlighted code blocks, blockquotes, nested lists, and viewport-adaptive tables tailored specifically for `minihtml`.
+- **Inline Math**: Converts common inline LaTeX expression into readable Unicode math in previews.
 - **Mermaid Diagrams**: Asynchronously renders fenced `mermaid` blocks into responsive inline diagrams via an auto-detected CLI (`@mermaid-js/mermaid-cli` or `merman-cli`), with graceful code fallback.
 
 > **Note**: Rendering is delegated directly to the `mdpopups` Package Control dependency without bundling a separate Markdown parser.

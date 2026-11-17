@@ -1,0 +1,8 @@
+MarkdownPreviewOverlay v0.3.0
+============================
+
+- Inline Math: Renders inline LaTeX expressions in Markdown previews using
+  `$...$`, `$$...$$`, and `\(...\)` delimiters. Common symbols, Greek letters,
+  operators, fractions, roots, superscripts, subscripts, accents, and
+  calligraphic or blackboard-bold notation are converted to readable Unicode
+  with lightweight HTML styling where needed.
