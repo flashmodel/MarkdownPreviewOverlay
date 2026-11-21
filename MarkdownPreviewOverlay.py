@@ -235,13 +235,19 @@ def _restore_view_state(view, saved_state):
         else (0.0, 0.0)
     )
 
+    # re-arms the caret after clearing sel() in preview mode.
+    view.sel().clear()
+    for selection in selections:
+        view.sel().add(selection)
+
     def restore_position():
         if not view.is_valid():
             return
-        view.sel().clear()
-        for selection in selections:
-            view.sel().add(selection)
         view.set_viewport_position(viewport, False)
+        window = view.window()
+        active_view = window.active_view() if window is not None else None
+        if active_view is not None and active_view.id() == view.id():
+            window.focus_view(view)
 
     sublime.set_timeout(restore_position)
 
@@ -706,6 +712,7 @@ class PreviewState(object):
             self.view.settings().set("gutter", False)
             self.view.settings().set("margin", PREVIEW_MARGIN)
         self.view.set_read_only(True)
+        self.view.sel().clear()
         self._render_preview_overlay(
             initial_top_row=initial_top_row if not preserve_saved_state else None
         )
@@ -755,6 +762,7 @@ class PreviewState(object):
             self.view.fold(self.fold_region)
 
         self.view.set_read_only(True)
+        self.view.sel().clear()
         self._render_preview_overlay()
 
     def _needs_refresh(self):

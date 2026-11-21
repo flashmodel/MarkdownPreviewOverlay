@@ -14,7 +14,7 @@ a.markdown-preview-overlay-toolbar-link {
     border: 1px solid color(var(--foreground) alpha(0.25));
     border-radius: 4px;
     padding: 0.5rem 0.8rem;
-    margin: 0.5rem 0 1rem;
+    margin: 0.5rem 0 1rem 1.4rem;
     color: var(--foreground);
     font-weight: bold;
 }
