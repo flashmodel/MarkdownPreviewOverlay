@@ -82,26 +82,44 @@ a.markdown-preview-overlay-preview-icon {
     font-size: 0.95rem;
     margin: 1rem 0 0.4rem;
 }
-.markdown-preview-overlay-document ul,
-.markdown-preview-overlay-document ol {
+div.mdpopups .markdown-preview-overlay-document ul,
+div.mdpopups .markdown-preview-overlay-document ol,
+div.markdown-preview-overlay-document ul,
+div.markdown-preview-overlay-document ol,
+.markdown-preview-overlay-document .markdown-preview-overlay-ol {
     margin: 0.6rem 0;
     padding-left: 1.2rem;
 }
-.markdown-preview-overlay-document li {
+.markdown-preview-overlay-document .markdown-preview-overlay-ol,
+.markdown-preview-overlay-document .markdown-preview-overlay-li {
+    display: block;
+}
+.markdown-preview-overlay-document .markdown-preview-overlay-ol-num {
+    display: inline-block;
+    margin-left: -1.1rem;
+}
+div.mdpopups .markdown-preview-overlay-document li,
+div.markdown-preview-overlay-document li,
+.markdown-preview-overlay-document .markdown-preview-overlay-li {
     margin: 0.25rem 0;
     line-height: 1.35;
 }
-.markdown-preview-overlay-document li > p {
+.markdown-preview-overlay-document li p,
+.markdown-preview-overlay-document .markdown-preview-overlay-li p {
     margin: 0.3rem 0;
 }
-.markdown-preview-overlay-document code {
+div.mdpopups .markdown-preview-overlay-document code,
+div.markdown-preview-overlay-document code {
     font-family: var(--font-mono);
     font-size: 0.9em;
     background-color: color(var(--background) blend(var(--foreground) 90%));
-    padding: 0.15rem 0.35rem;
+    padding: 0 0.35rem;
     border-radius: 3px;
 }
-.markdown-preview-overlay-document pre {
+div.mdpopups .markdown-preview-overlay-document pre,
+div.mdpopups .markdown-preview-overlay-document div.highlight pre,
+div.markdown-preview-overlay-document pre,
+div.markdown-preview-overlay-document div.highlight pre {
     background-color: color(var(--background) blend(var(--foreground) 94%));
     border: 1px solid color(var(--foreground) alpha(0.1));
     border-radius: 6px;
@@ -109,11 +127,32 @@ a.markdown-preview-overlay-preview-icon {
     margin: 1rem 0;
     line-height: 1.45;
 }
-.markdown-preview-overlay-document pre code {
+div.mdpopups .markdown-preview-overlay-document div.highlight,
+div.markdown-preview-overlay-document div.highlight {
     background-color: transparent;
+    border-style: none;
+    border-width: 0;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+}
+div.mdpopups .markdown-preview-overlay-document pre code,
+div.markdown-preview-overlay-document pre code {
+    background-color: transparent;
+    border-style: none;
+    border-width: 0;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    font-size: 0.92em;
+}
+div.markdown-preview-overlay-document .table code {
+    font-family: monospace;
+    font-size: 1rem;
+    color: var(--cyanish);
+    background-color: color(var(--foreground) alpha(0.08));
     padding: 0;
     border-radius: 0;
-    font-size: 0.92em;
 }
 .markdown-preview-overlay-document blockquote {
     margin: 1rem 0;

@@ -123,6 +123,173 @@ class TestListNormalizer(unittest.TestCase):
         )
         self.assertEqual(normalize_markdown_list_indentation(source), expected)
 
+    def test_adjacent_ul_and_ol_separated(self):
+        source = (
+            "- Unordered 1\n"
+            "  1. Nested ordered 1\n"
+            "  2. Nested ordered 2\n"
+            "- Unordered 2\n\n"
+            "1. Ordered 1\n"
+            "  - Nested unordered A\n"
+            "  - Nested unordered B\n"
+            "2. Ordered 2"
+        )
+        sep = '<div class="markdown-preview-overlay-list-sep"></div>'
+        expected = (
+            "- Unordered 1\n"
+            "    1. Nested ordered 1\n"
+            "    2. Nested ordered 2\n"
+            "- Unordered 2\n\n"
+            f"{sep}\n\n"
+            "1. Ordered 1\n"
+            "    - Nested unordered A\n"
+            "    - Nested unordered B\n"
+            "2. Ordered 2"
+        )
+        out = normalize_markdown_list_indentation(source)
+        self.assertEqual(out, expected)
+        self.assertNotIn("<!--", out)
+
+    def test_tight_and_multi_blank_list_type_switch(self):
+        sep = '<div class="markdown-preview-overlay-list-sep"></div>'
+        tight = "1. First\n- Second"
+        tight_expected = f"1. First\n\n{sep}\n\n- Second"
+        tight_out = normalize_markdown_list_indentation(tight)
+        self.assertEqual(tight_out, tight_expected)
+        self.assertNotIn("<!--", tight_out)
+
+        multi_blank = "- First\n\n\n1. Second"
+        multi_expected = f"- First\n\n\n{sep}\n\n1. Second"
+        multi_out = normalize_markdown_list_indentation(multi_blank)
+        self.assertEqual(multi_out, multi_expected)
+        self.assertNotIn("<!--", multi_out)
+
+        with_para = "- First\n\nParagraph break\n\n1. Second"
+        self.assertEqual(normalize_markdown_list_indentation(with_para), with_para)
+
+        with_heading = "- First\n\n## Section\n\n1. Second"
+        self.assertEqual(normalize_markdown_list_indentation(with_heading), with_heading)
+
+        with_hr = "- First\n\n---\n\n1. Second"
+        self.assertEqual(normalize_markdown_list_indentation(with_hr), with_hr)
+
+    def test_nested_same_level_list_type_switch(self):
+        sep = '<div class="markdown-preview-overlay-list-sep"></div>'
+        source = (
+            "- Parent\n"
+            "  - Sub UL\n\n"
+            "  1. Sub OL"
+        )
+        expected = (
+            "- Parent\n"
+            "    - Sub UL\n\n"
+            f"    {sep}\n\n"
+            "    1. Sub OL"
+        )
+        out = normalize_markdown_list_indentation(source)
+        self.assertEqual(out, expected)
+        self.assertNotIn("<!--", out)
+
+    def test_same_type_and_separate_parent_sublists_no_separator(self):
+        same_type = "- A\n* B"
+        self.assertEqual(normalize_markdown_list_indentation(same_type), same_type)
+
+        diff_parents = (
+            "- Parent 1\n"
+            "  - Sub UL\n"
+            "- Parent 2\n"
+            "  1. Sub OL"
+        )
+        diff_parents_expected = (
+            "- Parent 1\n"
+            "    - Sub UL\n"
+            "- Parent 2\n"
+            "    1. Sub OL"
+        )
+        self.assertEqual(
+            normalize_markdown_list_indentation(diff_parents),
+            diff_parents_expected,
+        )
+
+    def test_root_list_interrupting_paragraph_inserts_blank_line(self):
+        nested_ul = (
+            "Notes:\n"
+            "- A\n"
+            "  - B\n"
+            "    1. C\n"
+            "    2. D\n"
+            "- E"
+        )
+        nested_ul_expected = (
+            "Notes:\n\n"
+            "- A\n"
+            "    - B\n"
+            "        1. C\n"
+            "        2. D\n"
+            "- E"
+        )
+        self.assertEqual(
+            normalize_markdown_list_indentation(nested_ul),
+            nested_ul_expected,
+        )
+
+        ordered_after_text = "Steps:\n1. First\n2. Second"
+        self.assertEqual(
+            normalize_markdown_list_indentation(ordered_after_text),
+            "Steps:\n\n1. First\n2. Second",
+        )
+
+        for unchanged in ("Year:\n2026. A fresh start", "Notes:\n1) First", "Notes:\n-   "):
+            self.assertEqual(normalize_markdown_list_indentation(unchanged), unchanged)
+
+        self.assertNotIn(
+            "\n\n",
+            normalize_markdown_list_indentation("    code1\n    - code2"),
+        )
+
+    def test_nested_code_fence_and_fence_separates_lists(self):
+        nested_fence = (
+            "````markdown\n"
+            "```python\n"
+            "- inner\n"
+            "  - keep two spaces\n"
+            "```\n"
+            "- still inside outer fence\n"
+            "  - untouched\n"
+            "````\n"
+            "- after\n"
+            "  - normalized"
+        )
+        nested_expected = (
+            "````markdown\n"
+            "```python\n"
+            "- inner\n"
+            "  - keep two spaces\n"
+            "```\n"
+            "- still inside outer fence\n"
+            "  - untouched\n"
+            "````\n\n"
+            "- after\n"
+            "    - normalized"
+        )
+        self.assertEqual(
+            normalize_markdown_list_indentation(nested_fence),
+            nested_expected,
+        )
+
+        inline_ticks = (
+            "```code``` inline\n"
+            "- item\n"
+            "  - subitem"
+        )
+        self.assertEqual(
+            normalize_markdown_list_indentation(inline_ticks),
+            "```code``` inline\n\n- item\n    - subitem",
+        )
+
+        with_fence = "- First\n\n```python\nx = 1\n```\n\n1. Second"
+        self.assertEqual(normalize_markdown_list_indentation(with_fence), with_fence)
+
 
 if __name__ == "__main__":
     unittest.main()

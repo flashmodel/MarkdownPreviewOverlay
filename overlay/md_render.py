@@ -1,6 +1,7 @@
 """Custom Markdown rendering, transformations, and miniHTML formatting."""
 
 import html
+from html.parser import HTMLParser
 import os
 import pathlib
 import re
@@ -801,6 +802,27 @@ def estimate_markdown_scroll_ratio(markdown_text, target_line, wrap_width=80):
 
 
 _LIST_ITEM_RE = re.compile(r'^(\s*)([-*+]|\d+[.)])(\s+.*)$')
+_LIST_SEP_HTML = '<div class="markdown-preview-overlay-list-sep"></div>'
+_LIST_SEP_RE = re.compile(
+    r'(?:<p>\s*)?<div class="markdown-preview-overlay-list-sep"></div>(?:\s*</p>)?\n?'
+)
+
+
+def _parse_fence_open(stripped):
+    """Return (char, count) if stripped opens a fenced code block, else None."""
+    if not stripped.startswith(('```', '~~~')):
+        return None
+    char = stripped[0]
+    rest = stripped.lstrip(char)
+    if char == '`' and '`' in rest:
+        return None
+    return char, len(stripped) - len(rest)
+
+
+def _is_fence_close(stripped, fence):
+    """Return True if stripped closes an active fenced code block."""
+    char, count = fence
+    return stripped.startswith(char * count) and not stripped.lstrip(char)
 
 
 def normalize_markdown_list_indentation(text):
@@ -815,29 +837,27 @@ def normalize_markdown_list_indentation(text):
 
     lines = text.split('\n')
     new_lines = []
-    in_fence = False
-    fence_char = None
+    fence = None
     indent_stack = []
+    last_root_kind = None
     consecutive_blanks = 0
 
     for line in lines:
         stripped = line.strip()
 
-        # 1. Handle fenced code blocks with fast string prefix checks
-        if stripped.startswith(('```', '~~~')):
-            char = stripped[0]
-            if not in_fence:
-                in_fence = True
-                fence_char = char
-                if line.startswith(char * 3):  # 0-indent fence terminates list
-                    indent_stack.clear()
-            elif char == fence_char:
-                in_fence = False
+        # 1. Handle fenced code blocks
+        if fence is not None:
+            if _is_fence_close(stripped, fence):
+                fence = None
             new_lines.append(line)
             consecutive_blanks = 0
             continue
 
-        if in_fence:
+        fence = _parse_fence_open(stripped)
+        if fence is not None:
+            if not line[0].isspace() or not indent_stack:  # 0-indent fence terminates list
+                indent_stack.clear()
+                last_root_kind = None
             new_lines.append(line)
             consecutive_blanks = 0
             continue
@@ -855,6 +875,7 @@ def normalize_markdown_list_indentation(text):
         clean = stripped.replace(' ', '')
         if len(clean) >= 3 and set(clean) in ({'-'}, {'*'}, {'_'}):
             indent_stack.clear()
+            last_root_kind = None
             new_lines.append(line)
             continue
 
@@ -863,25 +884,43 @@ def normalize_markdown_list_indentation(text):
         if m:
             raw_spaces, marker, rest = m.groups()
             raw_len = len(raw_spaces.expandtabs(4))
+            list_kind = 'ol' if marker[0].isdigit() else 'ul'
+            prev_kind = None
 
-            if not indent_stack:
-                indent_stack.append((raw_len, 0))
-                norm_len = 0
+            # Python-Markdown requires a blank line before a root list following text.
+            if (
+                not indent_stack
+                and raw_len < 4
+                and rest.strip()
+                and (list_kind == 'ul' or marker == '1.')
+                and new_lines
+                and new_lines[-1].strip()
+            ):
+                new_lines.append('')
+            if indent_stack and raw_len - indent_stack[-1][0] >= 2:
+                # Deeper by >= 2 spaces: start a nested sub-list.
+                norm_len = len(indent_stack) * 4
+                indent_stack.append((raw_len, norm_len, list_kind))
             else:
-                if raw_len - indent_stack[-1][0] >= 2:
-                    norm_len = len(indent_stack) * 4
-                    indent_stack.append((raw_len, norm_len))
+                while indent_stack and indent_stack[-1][0] > raw_len:
+                    indent_stack.pop()
+                if indent_stack:
+                    # Same level (or 1-space typo snapped to parent): track kind switch.
+                    top_raw, norm_len, prev_kind = indent_stack[-1]
+                    indent_stack[-1] = (top_raw, norm_len, list_kind)
                 else:
-                    while indent_stack and indent_stack[-1][0] > raw_len:
-                        indent_stack.pop()
-                    if indent_stack and indent_stack[-1][0] == raw_len:
-                        norm_len = indent_stack[-1][1]
-                    else:
-                        if not indent_stack:
-                            indent_stack.append((raw_len, 0))
-                            norm_len = 0
-                        else:
-                            norm_len = indent_stack[-1][1]
+                    # Root level (or resumed after blank lines): check last root kind.
+                    norm_len, prev_kind = 0, last_root_kind
+                    indent_stack.append((raw_len, 0, list_kind))
+
+            if prev_kind and prev_kind != list_kind:
+                if new_lines and new_lines[-1].strip():
+                    new_lines.append('')
+                new_lines.append((' ' * norm_len) + _LIST_SEP_HTML)
+                new_lines.append('')
+
+            if norm_len == 0:
+                last_root_kind = list_kind
 
             new_lines.append((' ' * norm_len) + marker + rest)
         else:
@@ -895,9 +934,358 @@ def normalize_markdown_list_indentation(text):
                     new_indent = max(0, raw_indent + diff)
                     new_lines.append((' ' * new_indent) + line.lstrip())
                 else:
+                    last_root_kind = None
                     new_lines.append(line)
             else:
                 indent_stack.clear()
+                last_root_kind = None
                 new_lines.append(line)
 
     return '\n'.join(new_lines)
+
+
+class _OrderedListHtmlTransformer(HTMLParser):
+    """Rewrite <ol>/<li> HTML into numbered block divs for minihtml rendering."""
+
+    _MARKER_WRAPPER_TAGS = frozenset({'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'})
+    _OL_TYPES = frozenset({'1', 'a', 'A', 'i', 'I'})
+    _OL_DROP_ATTRS = frozenset({'start', 'reversed', 'type'})
+    _LI_DROP_ATTRS = frozenset({'value'})
+    _ROMAN_NUMERALS = (
+        (1000, 'm'), (900, 'cm'), (500, 'd'), (400, 'cd'),
+        (100, 'c'), (90, 'xc'), (50, 'l'), (40, 'xl'),
+        (10, 'x'), (9, 'ix'), (5, 'v'), (4, 'iv'), (1, 'i'),
+    )
+
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self._out = []
+        self._list_stack = []
+        self._li_stack = []
+        self._pre_depth = 0
+
+    def get_html(self):
+        return ''.join(self._out)
+
+    def _raw_start_tag(self, tag, attrs, self_closing=False):
+        raw = self.get_starttag_text()
+        if raw:
+            return raw
+        parts = [f'<{tag}']
+        for key, value in attrs:
+            if value is None:
+                parts.append(f' {key}')
+            else:
+                parts.append(f' {key}="{html.escape(value, quote=True)}"')
+        parts.append(' />' if self_closing else '>')
+        return ''.join(parts)
+
+    def _flush_pending_num(self, trailing_space=True):
+        if not self._li_stack:
+            return False
+        top_li = self._li_stack[-1]
+        pending = top_li['pending_num']
+        if pending is None:
+            return False
+        top_li['pending_num'] = None
+        kind = pending[0]
+        if kind == 'fixed':
+            suffix = ' ' if trailing_space else ''
+            self._out.append(
+                f'<span class="markdown-preview-overlay-ol-num">{pending[1]}</span>{suffix}'
+            )
+        else:
+            _, frame, offset = pending
+            out_idx = len(self._out)
+            self._out.append('')
+            frame['deferred'].append((out_idx, offset, trailing_space))
+        return True
+
+    def _close_li(self):
+        self._flush_pending_num(trailing_space=False)
+        top_li = self._li_stack.pop()
+        self._out.append('</div>' if top_li['owner'] == 'ol' else '</li>')
+
+    def _close_list(self, frame, closing_tag=None):
+        if frame['tag'] == 'ol':
+            start = frame['count']
+            for out_idx, offset, trailing_space in frame['deferred']:
+                label = self._format_ol_marker(start - offset, frame['list_type'])
+                suffix = ' ' if trailing_space else ''
+                self._out[out_idx] = (
+                    f'<span class="markdown-preview-overlay-ol-num">{label}</span>{suffix}'
+                )
+            self._out.append('</div>')
+        else:
+            self._out.append(f'</{closing_tag}>' if closing_tag else '</ul>')
+
+    @staticmethod
+    def _parse_int_attr(attrs, name):
+        for key, value in attrs:
+            if key.lower() == name and value is not None:
+                try:
+                    return int(value.strip())
+                except (ValueError, TypeError):
+                    return None
+        return None
+
+    @classmethod
+    def _parse_type_attr(cls, attrs):
+        for key, value in attrs:
+            if key.lower() == 'type' and value is not None:
+                candidate = value.strip()
+                if candidate in cls._OL_TYPES:
+                    return candidate
+                return '1'
+        return '1'
+
+    @staticmethod
+    def _has_attr(attrs, name):
+        return any(key.lower() == name for key, _ in attrs)
+
+    @staticmethod
+    def _to_alpha(n):
+        chars = []
+        while n > 0:
+            n, rem = divmod(n - 1, 26)
+            chars.append(chr(ord('a') + rem))
+        return ''.join(reversed(chars))
+
+    @classmethod
+    def _to_roman(cls, n):
+        parts = []
+        for value, symbol in cls._ROMAN_NUMERALS:
+            while n >= value:
+                parts.append(symbol)
+                n -= value
+        return ''.join(parts)
+
+    @classmethod
+    def _format_ol_marker(cls, num, list_type):
+        if list_type == 'a' and num > 0:
+            return f'{cls._to_alpha(num)}.'
+        if list_type == 'A' and num > 0:
+            return f'{cls._to_alpha(num).upper()}.'
+        if list_type == 'i' and 1 <= num <= 3999:
+            return f'{cls._to_roman(num)}.'
+        if list_type == 'I' and 1 <= num <= 3999:
+            return f'{cls._to_roman(num).upper()}.'
+        return f'{num}.'
+
+    @staticmethod
+    def _build_div_start_tag(base_class, attrs, drop_attrs):
+        classes = [base_class]
+        seen_classes = {base_class}
+        extra_parts = []
+        for key, value in attrs:
+            lower = key.lower()
+            if lower in drop_attrs:
+                continue
+            if lower == 'class':
+                if value:
+                    for token in value.split():
+                        if token not in seen_classes:
+                            seen_classes.add(token)
+                            classes.append(token)
+                continue
+            if value is None:
+                extra_parts.append(f' {key}')
+            else:
+                extra_parts.append(f' {key}="{html.escape(value, quote=True)}"')
+        class_str = html.escape(' '.join(classes), quote=True)
+        return f'<div class="{class_str}"{"".join(extra_parts)}>'
+
+    def handle_starttag(self, tag, attrs):
+        lower = tag.lower()
+        if lower == 'pre':
+            if self._pre_depth == 0:
+                self._flush_pending_num()
+            self._pre_depth += 1
+            self._out.append(self._raw_start_tag(tag, attrs))
+            return
+
+        if self._pre_depth > 0:
+            self._out.append(self._raw_start_tag(tag, attrs))
+            return
+
+        if lower == 'ol':
+            self._flush_pending_num()
+            start = self._parse_int_attr(attrs, 'start')
+            is_reversed = self._has_attr(attrs, 'reversed')
+            step = -1 if is_reversed else 1
+            list_type = self._parse_type_attr(attrs)
+            if start is not None:
+                next_num = start
+            elif is_reversed:
+                next_num = None
+            else:
+                next_num = 1
+            self._list_stack.append({
+                'tag': 'ol',
+                'next_num': next_num,
+                'step': step,
+                'list_type': list_type,
+                'count': 0,
+                'deferred': [],
+            })
+            self._out.append(
+                self._build_div_start_tag('markdown-preview-overlay-ol', attrs, self._OL_DROP_ATTRS)
+            )
+            return
+
+        if lower == 'ul':
+            self._flush_pending_num()
+            self._list_stack.append({'tag': 'ul'})
+            self._out.append(self._raw_start_tag(tag, attrs))
+            return
+
+        if lower == 'li':
+            top_list = self._list_stack[-1] if self._list_stack else None
+            if top_list is None:
+                self._out.append(self._raw_start_tag(tag, attrs))
+                return
+            depth = len(self._list_stack)
+            while self._li_stack and self._li_stack[-1]['depth'] >= depth:
+                self._close_li()
+            if top_list['tag'] == 'ol':
+                top_list['count'] += 1
+                explicit_val = self._parse_int_attr(attrs, 'value')
+                if explicit_val is not None:
+                    num = explicit_val
+                    top_list['next_num'] = num + top_list['step']
+                    pending_num = ('fixed', self._format_ol_marker(num, top_list['list_type']))
+                elif top_list['next_num'] is not None:
+                    num = top_list['next_num']
+                    top_list['next_num'] += top_list['step']
+                    pending_num = ('fixed', self._format_ol_marker(num, top_list['list_type']))
+                else:
+                    offset = top_list['count'] - 1
+                    pending_num = ('deferred', top_list, offset)
+                self._li_stack.append({
+                    'owner': 'ol',
+                    'depth': depth,
+                    'pending_num': pending_num,
+                })
+                self._out.append(
+                    self._build_div_start_tag(
+                        'markdown-preview-overlay-li', attrs, self._LI_DROP_ATTRS
+                    )
+                )
+            else:
+                self._li_stack.append({
+                    'owner': 'ul',
+                    'depth': depth,
+                    'pending_num': None,
+                })
+                self._out.append(self._raw_start_tag(tag, attrs))
+            return
+
+        if self._li_stack and self._li_stack[-1]['pending_num'] is not None:
+            if lower in self._MARKER_WRAPPER_TAGS:
+                self._out.append(self._raw_start_tag(tag, attrs))
+                self._flush_pending_num()
+                return
+            self._flush_pending_num()
+
+        self._out.append(self._raw_start_tag(tag, attrs))
+
+    def handle_startendtag(self, tag, attrs):
+        if self._pre_depth == 0:
+            self._flush_pending_num()
+        self._out.append(self._raw_start_tag(tag, attrs, self_closing=True))
+
+    def handle_endtag(self, tag):
+        lower = tag.lower()
+        if lower == 'pre':
+            if self._pre_depth > 0:
+                self._pre_depth -= 1
+            self._out.append(f'</{tag}>')
+            return
+
+        if self._pre_depth > 0:
+            self._out.append(f'</{tag}>')
+            return
+
+        if lower == 'li':
+            if self._li_stack and self._li_stack[-1]['depth'] == len(self._list_stack):
+                self._close_li()
+            elif not self._list_stack:
+                self._out.append(f'</{tag}>')
+            return
+
+        if lower in ('ol', 'ul'):
+            match_idx = None
+            for idx in range(len(self._list_stack) - 1, -1, -1):
+                if self._list_stack[idx]['tag'] == lower:
+                    match_idx = idx
+                    break
+            if match_idx is None:
+                self._out.append(f'</{tag}>')
+                return
+            while len(self._list_stack) > match_idx:
+                depth = len(self._list_stack)
+                while self._li_stack and self._li_stack[-1]['depth'] >= depth:
+                    self._close_li()
+                frame = self._list_stack.pop()
+                closing_tag = tag if len(self._list_stack) == match_idx else None
+                self._close_list(frame, closing_tag=closing_tag)
+            return
+
+        self._out.append(f'</{tag}>')
+
+    def handle_data(self, data):
+        if (self._pre_depth == 0
+                and self._li_stack
+                and self._li_stack[-1]['pending_num'] is not None):
+            if data.strip():
+                self._flush_pending_num()
+                self._out.append(data.lstrip())
+                return
+        self._out.append(data)
+
+    def handle_entityref(self, name):
+        if self._pre_depth == 0:
+            self._flush_pending_num()
+        self._out.append(f'&{name};')
+
+    def handle_charref(self, name):
+        if self._pre_depth == 0:
+            self._flush_pending_num()
+        self._out.append(f'&#{name};')
+
+    def handle_comment(self, data):
+        self._out.append(f'<!--{data}-->')
+
+    def handle_decl(self, decl):
+        self._out.append(f'<!{decl}>')
+
+    def handle_pi(self, data):
+        self._out.append(f'<?{data}>')
+
+    def unknown_decl(self, data):
+        self._out.append(f'<![{data}]>')
+
+    def close(self):
+        super().close()
+        while self._list_stack:
+            depth = len(self._list_stack)
+            while self._li_stack and self._li_stack[-1]['depth'] >= depth:
+                self._close_li()
+            frame = self._list_stack.pop()
+            self._close_list(frame)
+        while self._li_stack:
+            self._close_li()
+
+
+def render_ordered_lists_as_html(html_text):
+    """Rewrite <ol>/<li> blocks to explicit numbered divs for minihtml."""
+    if not html_text:
+        return html_text
+    if _LIST_SEP_HTML in html_text:
+        html_text = _LIST_SEP_RE.sub('', html_text)
+    if '<ol' not in html_text.lower():
+        return html_text
+    parser = _OrderedListHtmlTransformer()
+    parser.feed(html_text)
+    parser.close()
+    return parser.get_html()

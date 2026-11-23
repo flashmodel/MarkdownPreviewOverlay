@@ -28,6 +28,7 @@ from .overlay.md_render import (
     estimate_markdown_scroll_ratio,
     normalize_markdown_list_indentation,
     render_markdown_tables_as_html,
+    render_ordered_lists_as_html,
     resolve_markdown_image_paths,
 )
 from .overlay.ext_vintage import handle_vintage_command
@@ -630,12 +631,23 @@ class PreviewState(object):
         markdown = normalize_markdown_list_indentation(markdown)
         markdown = render_inline_math(markdown)
 
+        document_content = markdown
+        use_markdown = True
+        if hasattr(mdpopups, "md2html"):
+            try:
+                rendered_html = mdpopups.md2html(self.view, markdown)
+                if isinstance(rendered_html, str):
+                    document_content = render_ordered_lists_as_html(rendered_html)
+                    use_markdown = False
+            except Exception as exc:
+                _debug_log(f"md2html fallback: {exc}")
+
         phantoms.append(
             mdpopups.Phantom(
                 sublime.Region(anchor),
-                markdown,
+                document_content,
                 sublime.LAYOUT_BLOCK,
-                md=True,
+                md=use_markdown,
                 css=OVERLAY_CSS,
                 on_navigate=self.on_navigate,
                 wrapper_class="markdown-preview-overlay-document"
