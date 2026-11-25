@@ -242,9 +242,65 @@ class TestListNormalizer(unittest.TestCase):
         for unchanged in ("Year:\n2026. A fresh start", "Notes:\n1) First", "Notes:\n-   "):
             self.assertEqual(normalize_markdown_list_indentation(unchanged), unchanged)
 
-        self.assertNotIn(
-            "\n\n",
+        self.assertEqual(
             normalize_markdown_list_indentation("    code1\n    - code2"),
+            "    code1\n    - code2",
+        )
+        self.assertEqual(
+            normalize_markdown_list_indentation("    - code1\n    - code2"),
+            "    - code1\n    - code2",
+        )
+
+    def test_dedent_after_loose_or_switched_nested_lists(self):
+        sep = '<div class="markdown-preview-overlay-list-sep"></div>'
+
+        tight_switch = "- Parent 1\n  - Sub UL\n  1. Sub OL\n- Parent 2"
+        self.assertEqual(
+            normalize_markdown_list_indentation(tight_switch),
+            f"- Parent 1\n    - Sub UL\n\n    {sep}\n\n    1. Sub OL\n\n- Parent 2",
+        )
+
+        spaced_switch = "- Parent 1\n  - Sub UL\n\n  1. Sub OL\n- Parent 2"
+        self.assertEqual(
+            normalize_markdown_list_indentation(spaced_switch),
+            f"- Parent 1\n    - Sub UL\n\n    {sep}\n\n    1. Sub OL\n\n- Parent 2",
+        )
+
+        ordered_parent = "1. Root OL\n  1. Sub OL\n  - Sub UL\n2. Root OL 2"
+        self.assertEqual(
+            normalize_markdown_list_indentation(ordered_parent),
+            f"1. Root OL\n    1. Sub OL\n\n    {sep}\n\n    - Sub UL\n\n2. Root OL 2",
+        )
+
+        deep_nested = (
+            "- L0\n"
+            "  - L1a\n"
+            "    - L2 UL\n"
+            "    1. L2 OL\n"
+            "  - L1b\n"
+            "- L0b"
+        )
+        deep_expected = (
+            "- L0\n"
+            "    - L1a\n"
+            "        - L2 UL\n\n"
+            f"        {sep}\n\n"
+            "        1. L2 OL\n\n"
+            "    - L1b\n\n"
+            "- L0b"
+        )
+        self.assertEqual(normalize_markdown_list_indentation(deep_nested), deep_expected)
+
+        loose_sublist = "1. Root OL\n\n  - Sub UL\n2. Root OL 2"
+        self.assertEqual(
+            normalize_markdown_list_indentation(loose_sublist),
+            "1. Root OL\n\n    - Sub UL\n\n2. Root OL 2",
+        )
+
+        loose_prev_sibling = "- A\n\n- B\n  - Sub B\n- C"
+        self.assertEqual(
+            normalize_markdown_list_indentation(loose_prev_sibling),
+            "- A\n\n- B\n    - Sub B\n- C",
         )
 
     def test_nested_code_fence_and_fence_separates_lists(self):

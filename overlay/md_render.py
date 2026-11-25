@@ -838,7 +838,7 @@ def normalize_markdown_list_indentation(text):
     lines = text.split('\n')
     new_lines = []
     fence = None
-    indent_stack = []
+    indent_stack = []  # [raw_len, norm_len, list_kind, had_blank]
     last_root_kind = None
     consecutive_blanks = 0
 
@@ -867,6 +867,9 @@ def normalize_markdown_list_indentation(text):
             consecutive_blanks += 1
             if consecutive_blanks >= 2:
                 indent_stack.clear()
+            else:
+                for frame in indent_stack:
+                    frame[3] = True
             new_lines.append(line)
             continue
         consecutive_blanks = 0
@@ -884,13 +887,19 @@ def normalize_markdown_list_indentation(text):
         if m:
             raw_spaces, marker, rest = m.groups()
             raw_len = len(raw_spaces.expandtabs(4))
+            # Preserve 4-space indented code blocks outside active lists.
+            if not indent_stack and raw_len >= 4:
+                last_root_kind = None
+                new_lines.append(line)
+                continue
+
             list_kind = 'ol' if marker[0].isdigit() else 'ul'
             prev_kind = None
+            needs_dedent_blank = False
 
             # Python-Markdown requires a blank line before a root list following text.
             if (
                 not indent_stack
-                and raw_len < 4
                 and rest.strip()
                 and (list_kind == 'ul' or marker == '1.')
                 and new_lines
@@ -900,23 +909,35 @@ def normalize_markdown_list_indentation(text):
             if indent_stack and raw_len - indent_stack[-1][0] >= 2:
                 # Deeper by >= 2 spaces: start a nested sub-list.
                 norm_len = len(indent_stack) * 4
-                indent_stack.append((raw_len, norm_len, list_kind))
+                indent_stack.append([raw_len, norm_len, list_kind, False])
             else:
+                popped = False
+                popped_loose = False
                 while indent_stack and indent_stack[-1][0] > raw_len:
-                    indent_stack.pop()
+                    popped = True
+                    popped_loose = indent_stack.pop()[3]
                 if indent_stack:
                     # Same level (or 1-space typo snapped to parent): track kind switch.
-                    top_raw, norm_len, prev_kind = indent_stack[-1]
-                    indent_stack[-1] = (top_raw, norm_len, list_kind)
+                    top = indent_stack[-1]
+                    norm_len, prev_kind = top[1], top[2]
+                    needs_dedent_blank = popped and top[3]
+                    top[2], top[3] = list_kind, False
                 else:
                     # Root level (or resumed after blank lines): check last root kind.
                     norm_len, prev_kind = 0, last_root_kind
-                    indent_stack.append((raw_len, 0, list_kind))
+                    needs_dedent_blank = popped_loose
+                    indent_stack.append([raw_len, 0, list_kind, False])
 
             if prev_kind and prev_kind != list_kind:
                 if new_lines and new_lines[-1].strip():
                     new_lines.append('')
                 new_lines.append((' ' * norm_len) + _LIST_SEP_HTML)
+                new_lines.append('')
+                # Enclosing parents now contain a blank-line separator.
+                for frame in indent_stack[:-1]:
+                    frame[3] = True
+            elif needs_dedent_blank and new_lines[-1].strip():
+                # Separate dedented item so Python-Markdown closes the loose sub-list.
                 new_lines.append('')
 
             if norm_len == 0:
