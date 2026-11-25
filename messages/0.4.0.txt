@@ -1,0 +1,5 @@
+MarkdownPreviewOverlay v0.4.0
+=============================
+
+- Ordered List Rendering: Renders Markdown and HTML ordered lists with
+  explicit numbered markers in Sublime Text's minihtml engine.
